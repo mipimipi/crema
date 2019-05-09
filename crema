@@ -1,0 +1,255 @@
+#!/bin/bash
+#
+# Copyright (C) 2019 Michael Picht
+#
+# This file is part of crema (Custom Repository Management).
+#
+# crema is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# crema is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with crema. If not, see <http://www.gnu.org/licenses/>.
+#
+# This script is based on the work of Michael Daffin on managing
+# Arch Linux install. See: https://github.com/mdaffin/arch-pkgs
+
+set -uo pipefail
+trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
+
+VERSION=0.1
+
+# print_help --- print help text
+# usage: print_help
+print_help () {
+    cat <<EOF
+crema $VERSION
+Copyright (C) 2019 Michael Picht <https://github.com/mipimipi/crema>
+
+Being a wrapper for repo-add, repo-remove and aurutils, crema helps managing a custom repository that can contain packages from AUR and user-defined (meta) packages.
+
+Usage: crema [COMMAND]
+
+The commands are:
+  add       Add AUR packages to custom repository
+  build     Build packages from PKGBUILD and add them to custom repository  
+  env       List environment variables of crema
+  help      Help about any command
+  rm        Remove AUR packages from custom repository
+  update    Update all outdated AUR packages in custom repository  
+  version   Display version of repo
+
+Use "crema help [COMMAND]" for more information about a command.
+EOF
+}
+
+# print_help_add --- print help text for add command
+# usage: print_help_add
+print_help_add () {
+    cat <<EOF
+Add AUR packages incl. corresponding package tarballs to the custom repository
+Usage: crema add PACKAGE [PACKAGE] ...
+EOF
+}
+
+# print_help_build --- print help text for build command
+# usage: print_help_build
+print_help_build () {
+    cat <<EOF
+Build packages from PKGBUILD and add them and the corresponding packages tarballs to the custom repository. The command must be executed in the directory where PKGBUILD is stored.
+Usage: crema build
+EOF
+}
+
+# print_help_env --- print help text for env command
+# usage: print_help_env
+print_help_env () {
+    cat <<EOF
+List crema environment variables.
+Usage: crema env
+EOF
+}
+
+# print_help_rm --- print help text for rm command
+# usage: print_help_rm
+print_help_rm () {
+    cat <<EOF
+Remove AUR packages and corresponding package tarballs from the custom repository
+Usage: crema rm PACKAGE [PACKAGE] ...
+EOF
+}
+
+# print_help_update --- print help text for update command
+# usage: print_help_update
+print_help_update () {
+    cat <<EOF
+Update all outdated AUR packages in custom repository.
+Usage: crema update
+EOF
+}
+
+# check_env --- check if environment variables are set
+# usage: check_env
+check_env () {
+    if [ -z ${CREMAREPO+x} ]
+    then
+        echo "Variable CREMAREPO is not set"
+        exit 1
+    fi
+    if [ -z ${CREMAREPODIR+x} ]
+    then
+        echo "Variable CREMAREPODIR is not set"
+        exit 1
+    fi    
+}       
+
+# download_repo --- download custom repository (incl. package files) to
+# temporary directory
+# usage: download_rep
+download_repo () {
+    # set temporary directory for the repo and create it
+    TEMPDIR=${XDG_CACHE_HOME:-"$HOME"/.cache}/local-repo
+    mkdir -p "$TEMPDIR"
+    # sync remote to custom repository
+    rsync -a "${CREMAREPODIR}/" "${TEMPDIR}"     
+}     
+
+# upload_repo --- upload to custom repository (incl. package files) and delete
+# temporary directory
+# usage: upload_rep
+upload_repo () {
+    # sync local to remote repository
+    rsync -a --delete --no-perms "${TEMPDIR}/" "${CREMAREPODIR}"
+    # remove temporary directory since it's no longer needed
+    rm -rd "${TEMPDIR}"
+}    
+
+# check that crema environment variables are set
+check_env
+
+# crema needs a command
+if [ $# = 0 ]
+then
+    echo -e "crema expects a command\n"
+    print_help
+    exit 1
+fi
+
+case $1 in
+add)
+    # any package to add?
+    shift
+    if [ $# = 0 ]
+    then
+        echo "no package to add"
+        exit 0
+    fi
+    # download local repo incl. packages files
+    download_repo
+    # add packages
+    aur sync -d "$CREMAREPO" --root="$TEMPDIR" -n "$@" || true    
+    # upload adjusted local repo incl. package files
+    upload_repo
+    exit 0
+    ;;
+
+build)
+    ORIGDIR=$PWD
+    # cd into package directory
+    if [ ! -z ${2+x} ]
+    then
+        cd "$2"
+    fi
+    # download local repo incl. packages files
+    download_repo
+    # get packages that are going to be built
+    IFS=$'\n' PKGS_ORIG=($(makepkg --packagelist))
+    for ((i=0; i<${#PKGS_ORIG[@]}; i++));
+    do
+        PKGS[i]=${PKGS_ORIG[i]##/*/}
+    done
+    # build packages and remove temporary files
+    makepkg -c
+    # mv package files to temp dir
+    mv -f *.pkg.tar.xz "$TEMPDIR"
+    # add new packages / package versions to custom repository
+    cd "$TEMPDIR"
+    for pkg in ${PKGS[@]}
+    do
+        repo-add -n -R "${CREMAREPO}.db.tar.xz" "$pkg"
+    done    
+    cd -
+    # upload adjusted local repo incl. package files
+    upload_repo
+    # cd back to original directory
+    cd "$ORIGDIR"
+    ;;
+env)
+    echo "CREMAREPO=$CREMAREPO"
+    echo "CREMAREPODIR=$CREMAREPODIR"
+    ;;    
+
+help)
+    shift
+    if [ $# = 0 ]
+    then
+        print_help
+        exit 0
+    fi
+    if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "rm" && $1 != "update" ]]
+    then
+        echo "no help available for '$1'"
+        exit 1
+    fi
+    print_help_$1
+    ;;
+
+rm)
+    # any package to remove?
+    shift
+    if [ $# = 0 ]
+    then
+        echo "no package to remove"
+        exit 0
+    fi
+    # download local repo incl. packages files
+    download_repo
+    # remove packages from local repo db and remove package files
+    cd "$TEMPDIR"
+    repo-remove "${CREMAREPO}.db.tar.xz" "$@"
+    for pkg in $@
+    do
+        rm -f "$pkg"*pkg.tar.xz
+    done
+    cd -
+    # upload adjusted local repo incl. package files
+    upload_repo
+    ;;
+
+update)
+    # download local repo incl. packages files
+    download_repo
+    # update outdated packages
+    cd "$TEMPDIR"
+    aur sync -d "$CREMAREPO" --root="$TEMPDIR" -u -n || true
+    cd -
+    # upload adjusted local repo incl. package files
+    upload_repo
+    ;;
+
+version)
+    echo "crema version $VERSION"
+    ;;    
+
+*)
+    echo -e "Unknown command\n"
+    print_help
+    exit 1
+    ;;
+esac
