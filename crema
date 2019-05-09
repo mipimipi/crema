@@ -99,12 +99,12 @@ EOF
 check_env () {
     if [ -z ${CREMAREPO+x} ]
     then
-        echo "Variable CREMAREPO is not set"
+        echo "Variable CREMAREPO is not set. It must contain the name of the custom repository."
         exit 1
     fi
     if [ -z ${CREMAREPODIR+x} ]
     then
-        echo "Variable CREMAREPODIR is not set"
+        echo "Variable CREMAREPODIR is not set. It must contain the path of the custom repository."
         exit 1
     fi    
 }       
