@@ -38,14 +38,14 @@ Usage: crema [COMMAND]
 
 The commands are:
   add       Add AUR packages to custom repository
-  build     Build packages from PKGBUILD and add them to custom repository  
-  env       List environment variables of crema
+  build     Build packages from a PKGBUILD file and add them to the custom repository  
+  env       List the environment variables of crema
   help      Help about any command
-  rm        Remove AUR packages from custom repository
-  update    Update all outdated AUR packages in custom repository  
-  version   Display version of repo
+  rm        Remove AUR packages from the custom repository
+  update    Update all outdated AUR packages in the custom repository  
+  version   Display version of crema
 
-Use "crema help [COMMAND]" for more information about a command.
+Use "crema help [COMMAND]" for more information about any command.
 EOF
 }
 
@@ -53,7 +53,7 @@ EOF
 # usage: print_help_add
 print_help_add () {
     cat <<EOF
-Add AUR packages incl. corresponding package tarballs to the custom repository
+Add AUR packages incl. the corresponding package tarballs to the custom repository
 Usage: crema add PACKAGE [PACKAGE] ...
 EOF
 }
@@ -62,7 +62,7 @@ EOF
 # usage: print_help_build
 print_help_build () {
     cat <<EOF
-Build packages from PKGBUILD and add them and the corresponding packages tarballs to the custom repository. The command must be executed in the directory where PKGBUILD is stored.
+Build packages from a PKGBUILD file and add them and the corresponding packages tarballs to the custom repository. The command must be executed in the directory where PKGBUILD is stored.
 Usage: crema build
 EOF
 }
@@ -80,7 +80,7 @@ EOF
 # usage: print_help_rm
 print_help_rm () {
     cat <<EOF
-Remove AUR packages and corresponding package tarballs from the custom repository
+Remove AUR packages and the corresponding package tarballs from the custom repository
 Usage: crema rm PACKAGE [PACKAGE] ...
 EOF
 }
@@ -89,7 +89,7 @@ EOF
 # usage: print_help_update
 print_help_update () {
     cat <<EOF
-Update all outdated AUR packages in custom repository.
+Update all outdated AUR packages in the custom repository.
 Usage: crema update
 EOF
 }
