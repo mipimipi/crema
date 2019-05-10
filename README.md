@@ -1,11 +1,10 @@
 # crema
-Manage your custom [Arch Linux](https://www.archlinux.org/) repositories
 
 ## Description
 
-[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal repositories. They are stored on an FTP server in a local network, for example. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage such repositories. It supports repositories that contain [Meta packages](https://disconnected.systems/blog/archlinux-meta-packages/) and packages from [AUR](https://aur.archlinux.org/), the Arch Linux user repository.
+[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories. They are stored on an FTP server in a local network, for example. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage such repositories. It supports repositories that contain [Meta packages](https://disconnected.systems/blog/archlinux-meta-packages/) and packages from [AUR](https://aur.archlinux.org/), the Arch Linux user repository.
 
-Meta packages (and thus also custom repositories), are a great means to automate the [installation of Arch Linux](https://wiki.archlinux.org/index.php/installation_guide). Get detailed information [here](https://github.com/mipimipi/crema/blob/master/docs/automation.md).
+Meta packages (and thus also custom repositories), are a great means to automate the [installation of Arch Linux](https://wiki.archlinux.org/index.php/installation_guide). Get detailed information about how a (more) automated installation of Arch Linux can be achieved [here](https://github.com/mipimipi/crema/blob/master/docs/automation.md).
 
 ## Features
 
