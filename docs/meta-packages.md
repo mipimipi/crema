@@ -96,7 +96,7 @@ Luckily, there is a nice feature in [systemd](https://wiki.archlinux.org/index.p
 
 See an example in [my meta packages](https://github.com/mipimipi/metapkg):
 
-1. The file [mipi-base.systemd.preset](https://github.com/mipimipi/alime/blob/master/pkg/mipi-base.systemd.preset) contains the presets for the mipi-base meta package.
+1. The file [mipi-base.systemd.preset](https://github.com/mipimipi/crema/blob/master/docs/meta-packages.md) contains the presets for the mipi-base meta package.
 1. It is copied to the system-preset directory of systemd by a statement in the PKGBUILD file:
 
     `install -Dm0644 mipi-base.systemd.preset "${pkgdir}"/usr/lib/systemd/system-preset/10-mipi-base.preset`
