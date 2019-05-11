@@ -1,21 +1,40 @@
-### Table of Content
-* [Meta Packages](Meta-Packages)
-* [Installation script](Installation-script)
+# Automation of Arch Linux installation
 
-With alime, the installation of an Arch Linux system comes down to the following steps:
+[Installing Arch Linux manually](https://wiki.archlinux.org/index.php/installation_guide) is great to learn how Linux is works. But if multiple machines need to be installed, this process cumbersome and annoying. Therefore, automation is needed.
 
-1. Define a [meta package](Meta-Packages)
+## Installation of an Arch Linux system
 
-    This package contains the software packages that you want to have installed by the installation script as dependencies. Furthermore, it contains logic to create or adjust configuration files and to enable background services. Get further information about the meta package concept [here](Meta-Packages).
+Typically, the installation of Arch Linux consists of three steps:
 
-1. Run the [installation script](Installation-script)
+1. Installation of the Arch Linux base system
+1. Installation of additional software packages and its global (i.e. user-independent) configuration
+1. Personal (i.e. user-specific) configuration of the system
 
-    You boot your computer from the current [Arch Linux ISO](https://www.archlinux.org/download/) and execute the installation script with the command
+### Installation of the Arch Linux base system
 
-        curl -sL https://git.io/fpSKp | bash
+For this task, Arch Linux installation scripts can be utilized, such as [Archlinux U Install](https://github.com/helmuthdu/aui), [arch-installer](https://github.com/rstacruz/arch-installer) or [archfi](https://github.com/MatMoul/archfi). Such installers typically install a base Arch Linux system only, i.e. no idditional software packages and only limited configuration.
 
-    The scripts needs a simple configuration file, that you could store on a local web server, e.g. In there, you specify the hostname, locale, partition sizes, meta package, admin user name etc. Since the scripts installs a LUKS encrypted system, the script asks for a corresponding passphrase and also for a root password. The required software is installed during the installation process by pacstrapping the above-mentioned meta package. Get further information about the installation script [here](Installation-script).
+### Installation of additional software packages
 
-1. Reboot and use your new system
+This can be done via [meta packages](https://disconnected.systems/blog/archlinux-meta-packages/). These are Arch Linux packages that depend on other packages. Installating a meta packages triggers the installation of all packages that the meta package depends on. Thus, it can be used to install a specific set of Arch Linux packages. Get more detailed information [here](meta-packages).
 
-    Once the installation has finished, you remove the Arch Linux ISO media and reboot the system.
+### Personal configuration of the system
+
+For the user-specific configuration, [dotfile managers](https://wiki.archlinux.org/index.php/Dotfiles#Tools) can be used.
+
+## An automated installation approach 
+
+Though this approach is not completely automated, it's less manual and much faster, than a [manual Arch Linux installation](https://wiki.archlinux.org/index.php/installation_guide). The installation consists of the following steps:
+
+### Preparation
+
+1. Prepare the meta packages and provide it via a [custom repository](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository). Get more detailed information [here](meta-packages].
+1. Download the [Arch Linux ISO](https://www.archlinux.org/download/) and prepare an installation media.
+
+### Installation
+
+1. But your machine from the Arch Linux ISO.
+1. Install the base system using an installer. In case of [archfi](https://github.com/MatMoul/archfi), for example, the [base group](https://www.archlinux.org/groups/x86_64/base/) of packages is installated.
+1. Reboot, add your custom repository to `/etc/pacman.conf`. Execute `pacman -Syu` and install the meta package via `pacman -S <your-meta-package>`.
+1. Create a user (provided, this hasn't been done before) and create the user-specific configuration with a dotfile manager such as [yadm](https://github.com/TheLocehiliosan/yadm)
+1. Use your new system
