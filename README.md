@@ -6,7 +6,7 @@ Meta packages (and thus also custom repositories), are a great means to automate
 
 ## Features
 
-cream supports the following tasks:
+crema supports the following tasks:
 
 * Building meta packages from a [PKGBUILD](https://wiki.archlinux.org/index.php/PKGBUILD) file
 * Adding and removing AUR packages
@@ -14,13 +14,9 @@ cream supports the following tasks:
 
 ## Installation
 
-### Arch Linux et al.
+There is an AUR package for crema that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur) or [trizen](https://github.com/trizen/trizen).
 
-For Arch Linux and Linux distributions that are based on Arch, there is an AUR package for crema that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur) or [trizen](https://github.com/trizen/trizen).
-
-### Manual installation
-
-Clone this repository and copy the crema script to a directory of your choice.
+Another is a manual installation. For this, clone this repository and copy the crema script to a directory of your choice.
 
 ## Configuration
 

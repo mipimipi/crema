@@ -12,7 +12,7 @@ Typically, the installation of Arch Linux consists of three steps:
 
 ### Installation of the Arch Linux Base System
 
-For this task, Arch Linux installation scripts can be utilized, such as [Archlinux U Install](https://github.com/helmuthdu/aui), [arch-installer](https://github.com/rstacruz/arch-installer) or [archfi](https://github.com/MatMoul/archfi). These kinde of installers typically install a base Arch Linux system only, i.e. no additional software packages and only limited configuration.
+For this task, Arch Linux installation scripts can be utilized, such as [Archlinux U Install](https://github.com/helmuthdu/aui), [arch-installer](https://github.com/rstacruz/arch-installer) or [archfi](https://github.com/MatMoul/archfi). These kind of installers typically install a base Arch Linux system only, i.e. no additional software packages and only limited configuration.
 
 ### Installation of Additional Software Packages
 
