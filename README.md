@@ -14,7 +14,7 @@ crema supports the following tasks:
 
 ## Installation
 
-There is an AUR package for crema that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur) or [trizen](https://github.com/trizen/trizen).
+There is an AUR package for crema that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur) or [trizen](https://github.com/trizen/trizen). crema is stored in `/usr/bin`.
 
 Another option is a manual installation. For this, clone this repository and copy the crema script to a directory of your choice.
 
