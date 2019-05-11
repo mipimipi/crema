@@ -1,20 +1,20 @@
-Meta packages are a means to automate the installation of software package in Arch Linux. They are [created](https://wiki.archlinux.org/index.php/Creating_packages) like "normal" packages, but their main purpose is to depend on other packages to facilitate their installation.
+Meta packages are [created](https://wiki.archlinux.org/index.php/Creating_packages) like "normal" packages, but their main purpose is to depend on other packages to facilitate the installation of these dependencies.
 
 ## Contents
 
 * [Usage](#usage)
-  - [Installation of software packages](#inst)
-  - [Configuration of software packages](#config)
-    - [New configuration files](#config-new)
-    - [Changing existing configuration files](#config-change)
-  - [Enabling services](#services)
-* [Local repository](#repo)
-* [Building meta packages](#build)
-* [AUR packages](#aur)
+  - [Installation of Software Packages](#inst)
+  - [Configuration of Software Packages](#config)
+    - [New Configuration Files](#config-new)
+    - [Changing Existing Configuration Files](#config-change)
+  - [Enabling Services](#services)
+* [Custom Repository](#repo)
+* [Building Meta Packages](#build)
+* [AUR Packages](#aur)
 
 ## <a name="usage"></a>Usage
 
-[Michael Daffin](https://github.com/mdaffin) described the usage of meta packages very well in his blog post [Managing Arch Linux with Meta Packages](https://disconnected.systems/blog/archlinux-meta-packages/). Since there's no need to repeat that, this page focuses on the specifics of the alime approach.
+[Michael Daffin](https://github.com/mdaffin) described the usage of meta packages very well in his blog post [Managing Arch Linux with Meta Packages](https://disconnected.systems/blog/archlinux-meta-packages/). This page focuses on some additional aspects.
 
 With respect to installation automation, meta packages can be used for different purposes. These are in particular
 
@@ -22,9 +22,9 @@ With respect to installation automation, meta packages can be used for different
 1. Configuration of software packages
 1. Enabling of services
 
-### <a name="inst"></a>Installation of software packages
+### <a name="inst"></a>Installation of Software Packages
 
-As already mentioned, the main purpose of meta packages is to depend on other packages. Thus, the installation of a meta package triggers the installation of these dependencies. So one could create a meta package that depends on all the software packages that one would like to have installed in an Arch Linux system. Pacstrapping that package would then trigger the installation of all these software packages.
+As already mentioned, the main purpose of meta packages is to depend on other packages. Thus, the installation of a meta package triggers the installation of these dependencies. For example, one could create a meta package that depends on all the software packages that one would like to have installed in an Arch Linux system. Pacstrapping that meta package would then trigger the installation of all the software packages that the meta package depends on.
 
 Meta packages can depend on other meta packages. Thus, one could create a hierarchy of meta packages. E.g.:
 
@@ -36,21 +36,21 @@ Meta packages can depend on other meta packages. Thus, one could create a hierar
       |
       ...
 
-In this example, there's a meta package for each of the different machine types that Arch Linux is intended to be installed upon (desktop, laptop etc.). They all depend on a base meta package. That package in turn depends on the software packages that all machines need. The specialized meta packages for desktop, laptop etc. only depend of software packages that are specific for the installation on a desktop or laptop.
+In this example, there's a meta package for each of the different machine types that Arch Linux is intended to be installed upon (desktop, laptop etc.). They all depend on a base meta package. That package in turn depends on the software packages that all machines need. The specialized meta packages for desktop, laptop etc. only depend (besides the base meta package) on software packages that are specific for the installation on a desktop or laptop.
 
-For more information about how meta packages can be created, see [Michael Daffins blog posts](https://disconnected.systems/blog/archlinux-meta-packages/#creating-a-meta-package) and [an example in the alime Github repository](https://github.com/mipimipi/alime/tree/master/pkg).
+For more information about how meta packages can be created, see an example [here](https://github.com/mipimipi/metapkg/blob/master/PKGBUILD).
 
-### <a name="config"></a>Configuration of software packages
+### <a name="config"></a>Configuration of Software Packages
 
 In addition to its installation, some software packages require configuration. This can also be automated with meta packages.
 
 #### <a name="config-new"></a>New configuration files
 
-Also this scenario is described very well in [Michael Daffins blog post](https://disconnected.systems/blog/archlinux-meta-packages/#adding-config-files). So, there is no need to elaborate on this topic here in further detail. Just one hint for [Emacs](https://wiki.archlinux.org/index.php/Emacs) users: There are dedicated [major modes](https://www.emacswiki.org/emacs/MajorMode) available PKGBUILD files (e.g. [PKGBUILD mode](https://github.com/juergenhoetzel/pkgbuild-mode)). A very handy feature is the automated calculation of checksums for files that are listed in the source array of PKGBUILD. 
+For this type of software packages, their configuration files need to be stored in a certain directory and its not necessary to overwrite or change existing (default) files. An example is sudo, where configuration files can be dropped into the directory `/etc/sudoers.d`. A proper approach for this scenario is to make the corresponding configuration files part of the meta package and add an `install` line to the [PKGBUILD](https://wiki.archlinux.org/index.php/PKGBUILD) file, like I did it in [my meta packages](https://github.com/mipimipi/metapkg).  
 
-#### <a name="config-change"></a>Changing existing configuration files
+#### <a name="config-change"></a>Changing Existing Configuration Files
 
-If existing configuration files need to be changed or overwritten, a different approach must be pursued as [Michael Daffin explained](https://disconnected.systems/blog/archlinux-meta-packages/#overwriting-existing-configs). Different from Michael, alime uses the configuration management tool [holo](https://github.com/holocm/holo) for this task. holo uses [alpm hooks](https://www.archlinux.org/pacman/alpm-hooks.5.html) to manage configuration files. In a nutshell, the following steps are necessary to change or overwrite existing configuration files with holo:
+If existing (default) configuration files need to be changed or overwritten, the configuration management tool [holo](https://github.com/holocm/holo) can do the job.It uses [alpm hooks](https://www.archlinux.org/pacman/alpm-hooks.5.html) to manage configuration files. In a nutshell, the following steps are necessary to change or overwrite existing configuration files with holo:
 
 1. The meta package must depend on the [holo AUR package](https://aur.archlinux.org/packages/holo). I.e. the holo AUR package must be installed - see the [specific approach for meta packages depending on AUR packages](#aur).
 
@@ -72,11 +72,11 @@ If existing configuration files need to be changed or overwritten, a different a
     
     `install -Dm0750 mipi-base.ntp.conf.holoscript "${pkgdir}"/usr/share/holo/files/20-ntp/etc/ntp.conf.holoscript`
     
-    does the job. In [this example](https://github.com/mipimipi/alime/blob/master/pkg/mipi-base.ntp.conf.holoscript), a local time server is appended to `ntp.conf`.  
+    does the job. 
 
-1. `holo apply` must be executed in the post_install(), post_upgrade() and post_remove() hooks of [PKGBUILD](https://wiki.archlinux.org/index.php/PKGBUILD#install).  
+1. `holo apply` must be executed in the `post_install()`, `post_upgrade()` and `post_remove()` hooks of [PKGBUILD](https://wiki.archlinux.org/index.php/PKGBUILD#install).  
 
-holo then makes the required changes (either file overwriting or change) during the installation of the meta package.
+holo then makes the required changes (either file overwrite or change) during the installation of the meta package.
 
 ### <a name="services"></a>Enabling services
 
@@ -101,7 +101,7 @@ See an example in the alime Github repo:
 
 1. The statement `systemctl preset-all` is put into the post_install() and the post_upgrade() hook. It triggers the interpretation on the preset configuration. If `systemctl preset-all` is not executed, the new preset configuration is not read, i.e. the services will not be enabled.
 
-## <a name="repo"></a>Local repository
+## <a name="repo"></a>Custom Repository
 
 Meta packages need to be stored in and provided by a repository. We suggest to create a [custom local repository](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) for these purposes.
 
@@ -117,32 +117,24 @@ To make the new repository known to [pacman](https://wiki.archlinux.org/index.ph
     SigLevel = Optional TrustAll
     Server = ftp://<path-to-repo>/x86_64
 
-This is exactly what is done during the [alime installation script](Installation-script) to enable the installation of the custom meta packages during the installation process. Therefore, the name of the repository, its URL and the name of the meta package need to be specified in the configuration file of the script.
+crema helps to manage such a custom repository.
 
 ## <a name="build"></a>Building meta packages
 
-For the management of meta packages we suggest to create a dedicated directory that contains
+For the management of a meta package we suggest to create a dedicated directory that contains
 
 * The PKGBUILD file
 * The other relevant files such as configuration files and scripts
 
-To facilitate building meta packages and adding them to a local repository, alime contains the script [`repobuild`](https://github.com/mipimipi/alime/blob/master/repobuild). It requires the configuration file `alimerepo.conf` in the user-specific configuration directory (normally, that's `~/.config`). `alimerepo.conf` just contains the name of the local repository and its URL:
-
-    repo=<name of repository>
-    repodir=<ssh path to repository directory>
-
-To install `repobuild`, download and copy it to a directory of your choice.
-
-To build the meta packages and update the local repository, execute `repobuild`in the meta package directory. 
+crema can be used to build the meta package(s). Therefore, `crema update` needs to be executed in the directory where the PKGBUILD files is stored.
 
 ## <a name="aur"></a>AUR packages
 
-The installation of [AUR](https://aur.archlinux.org/) packages need some more attention. In contrast to packages that are provided by the [official Arch Linux repositories](https://wiki.archlinux.org/index.php/Official_repositories), it is not sufficient to only let a meta package depend on an AUR package to trigger its installation. The pacstrap command, which is executed during the Arch Linux installation process, would throw an error: `could not resolve dependencies` (see the [discussion in the Arch Linux Forum](https://bbs.archlinux.org/viewtopic.php?id=241682)). This can be solved with the help of [aurutils](https://github.com/AladW/aurutils). It contains scripts that automate the management of AUR packages and can be [installed from AUR](https://aur.archlinux.org/packages/aurutils). Of special interest for our use case is the script `aursync` it supports downloading AUR packages, adding them to local repositories and updating them if a new package version is available.
+The installation of [AUR](https://aur.archlinux.org/) packages need some more attention. In contrast to packages that are provided by the [official Arch Linux repositories](https://wiki.archlinux.org/index.php/Official_repositories), it is not sufficient to only let a meta package depend on an AUR package to trigger its installation. The pacstrap command, which is executed during the Arch Linux installation process, would throw an error: `could not resolve dependencies` (see the [discussion in the Arch Linux Forum](https://bbs.archlinux.org/viewtopic.php?id=241682)). A solution approach is to add the AUR package to the custom repository. Then the meta package can depend on it without getting an error during the installation process.
 
-The alime script [reposync](https://github.com/mipimipi/alime/blob/master/reposync) is a wrapper around `aursync`.
+Also here, crema can help:
 
-To use it, download and copy it to a directory of your choice. `reposync` also relies on the configuration file `alimerepo.conf` (see above).
+* Execute `crema add <package-name>` to add an AUR package to the custom repository
+* Execute `crema update` to updated all outdated AUR packages of your custom repository
 
-To download and add AUR packages to your local repository, execute `reposync <name of package 1> ... <name of package n>`
-
-To update all AUR packages execute `reposync -u`
+As a side effect, you can install, remove or update AUR packages from your custom repository with the `pacman` command.
