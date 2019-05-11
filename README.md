@@ -35,6 +35,10 @@ cream has sub commands for the different tasks:
 * `crema rm PACKAGE [PACKAGE] ...` removes AUR packages and the corresponding package tarballs from the custom repository.
 * `cream update` updates all outdated AUR packages in the custom repository.
 
+## Details
+
+crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg) and [aurutils](https://github.com/AladW/aurutils).
+
 ## License
 
 [GNU Public License v3.0](https://github.com/mipimipi/crema/blob/master/LICENSE)
