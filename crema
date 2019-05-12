@@ -23,7 +23,7 @@
 set -uo pipefail
 trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
-VERSION=0.1
+VERSION=1.0
 
 # print_help --- print help text
 # usage: print_help
