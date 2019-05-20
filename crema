@@ -23,7 +23,7 @@
 set -uo pipefail
 trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
-VERSION=1.0
+VERSION=1.1
 
 # print_help --- print help text
 # usage: print_help
@@ -37,10 +37,11 @@ Being a wrapper for repo-add, repo-remove and aurutils, crema helps managing a c
 Usage: crema [COMMAND]
 
 The commands are:
-  add       Add AUR packages to custom repository
+  add       Add AUR packages to the custom repository
   build     Build packages from a PKGBUILD file and add them to the custom repository  
   env       List the environment variables of crema
   help      Help about any command
+  ls        List all packages of the custom repository
   rm        Remove AUR packages from the custom repository
   update    Update all outdated AUR packages in the custom repository  
   version   Display version of crema
@@ -76,6 +77,14 @@ Usage: crema env
 EOF
 }
 
+# print_help_ls --- print help text for ls command
+# usage: print_help_ls
+print_help_rm () {
+    cat <<EOF
+List all packages of the custom repository
+Usage: crema ls
+EOF
+}
 # print_help_rm --- print help text for rm command
 # usage: print_help_rm
 print_help_rm () {
@@ -202,12 +211,17 @@ help)
         print_help
         exit 0
     fi
-    if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "rm" && $1 != "update" ]]
+    if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" ]]
     then
         echo "no help available for '$1'"
         exit 1
     fi
     print_help_$1
+    ;;
+
+ls)
+    shift
+    pacman -Sl ${CREMAREPO}
     ;;
 
 rm)
