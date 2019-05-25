@@ -23,7 +23,7 @@
 set -uo pipefail
 trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
-VERSION=1.1
+VERSION=1.2
 
 # print_help --- print help text
 # usage: print_help
@@ -34,7 +34,7 @@ Copyright (C) 2019 Michael Picht <https://github.com/mipimipi/crema>
 
 Being a wrapper for repo-add, repo-remove and aurutils, crema helps managing a custom repository that can contain packages from AUR and user-defined (meta) packages.
 
-Usage: crema [COMMAND]
+Usage: crema COMMAND [ARGUMENTS] 
 
 The commands are:
   add       Add AUR packages to the custom repository
@@ -46,7 +46,7 @@ The commands are:
   update    Update all outdated AUR packages in the custom repository  
   version   Display version of crema
 
-Use "crema help [COMMAND]" for more information about any command.
+Use "crema help COMMAND" for more information about any command.
 EOF
 }
 
@@ -54,8 +54,9 @@ EOF
 # usage: print_help_add
 print_help_add () {
     cat <<EOF
-Add AUR packages incl. the corresponding package tarballs to the custom repository
-Usage: crema add PACKAGE [PACKAGE] ...
+Usage: crema add [--repo | -r REPOSITORY] [--repodir | -d PATH-TO-REPOSITORY] PACKAGE [PACKAGES]
+
+Add AUR packages incl. the corresponding package tarballs to the custom repository.
 EOF
 }
 
@@ -63,8 +64,9 @@ EOF
 # usage: print_help_build
 print_help_build () {
     cat <<EOF
-Build packages from a PKGBUILD file and add them and the corresponding packages tarballs to the custom repository. The command must be executed in the directory where PKGBUILD is stored.
-Usage: crema build
+Usage: crema build [PATH-TO-PKGBUILD>]
+
+Build packages from a PKGBUILD file and add them and the corresponding packages tarballs to the custom repository. If the command is called without argument, it looks for PKGBUILD in the current path.
 EOF
 }
 
@@ -72,8 +74,9 @@ EOF
 # usage: print_help_env
 print_help_env () {
     cat <<EOF
-List crema environment variables.
 Usage: crema env
+
+List crema environment variables.
 EOF
 }
 
@@ -81,16 +84,18 @@ EOF
 # usage: print_help_ls
 print_help_rm () {
     cat <<EOF
-List all packages of the custom repository
 Usage: crema ls
+
+List all packages of the custom repository
 EOF
 }
 # print_help_rm --- print help text for rm command
 # usage: print_help_rm
 print_help_rm () {
     cat <<EOF
+Usage: crema rm [--repo | -r REPOSITORY] [--repodir | -d PATH-TO-REPOSITORY] PACKAGE [PACKAGES]
+
 Remove AUR packages and the corresponding package tarballs from the custom repository
-Usage: crema rm PACKAGE [PACKAGE] ...
 EOF
 }
 
@@ -98,14 +103,32 @@ EOF
 # usage: print_help_update
 print_help_update () {
     cat <<EOF
+Usage: crema update [--repo | -r REPOSITORY] [--repodir | -d PATH-TO-REPOSITORY]
+
 Update all outdated AUR packages in the custom repository.
-Usage: crema update
 EOF
 }
 
 # check_env --- check if environment variables are set
 # usage: check_env
 check_env () {
+
+#####
+##!/bin/bash
+#
+#_ARGS=()
+#
+#shift_globally () {
+#  shift
+#  _ARGS=$@
+#}
+#
+#echo "before: " "$@"
+#shift_globally "$@"
+#set -- "${_ARGS[@]}"
+#echo "after: " "$@"
+#####
+
     if [ -z ${CREMAREPO+x} ]
     then
         echo "Variable CREMAREPO is not set. It must contain the name of the custom repository."
