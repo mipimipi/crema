@@ -20,15 +20,25 @@
 # This script is based on the work of Michael Daffin on managing
 # Arch Linux install. See: https://github.com/mdaffin/arch-pkgs
 
+################################################################################
+# global declarations
+################################################################################
+
 set -uo pipefail
 set -o nounset
 trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
 declare -r VERSION=1.2
-declare -r TEMPDIR=${XDG_CACHE_HOME:-"$HOME"/.cache}/local-repo
-declare -r CONFDIR=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema
+declare -r TEMPDIR=${XDG_CACHE_HOME:-"$HOME"/.tmp}/local-repo
+declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
 declare REPO=""
+declare SIGN=false
 declare REPODIR=""
+declare CMD=""
+
+################################################################################
+# functions
+################################################################################
 
 # print_help --- print help text
 # usage: print_help
@@ -37,7 +47,7 @@ print_help () {
 crema $VERSION
 Copyright (C) 2019 Michael Picht <https://github.com/mipimipi/crema>
 
-Being a wrapper for repo-add, repo-remove and aurutils, crema helps managing a custom repository that can contain packages from AUR and user-defined (meta) packages.
+crema helps managing custom repositories. These can contain packages from AUR or other, user-defined packages. With crema, packages can be added, removed, built, updated etc.
 
 Usage: crema <command> [<arguments>] 
 
@@ -69,7 +79,7 @@ EOF
 # usage: print_help_build
 print_help_build () {
     cat <<EOF
-Usage: crema build (--repo | -r) <repository> [<path to PKGBUILD>]
+Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [<paths to PKGBUILD>]
 
 Build packages from a PKGBUILD file and add them and the corresponding packages tarballs to the custom repository. If the command is called without a path, it looks for PKGBUILD in the current path.
 EOF
@@ -114,52 +124,57 @@ Update all outdated AUR packages in the custom repository.
 EOF
 }
 
-# get_repo --- retrieve repo from arguments
-# usage: get_repo
-get_repo () {
-    if [[ -z ${1+x} || $1 != "--repo" && $1 != "-r" ]]
-    then
-        echo "command expects a repository as argument"
-        exit 1
-    fi    
-    if [[ -z ${2+x} ]]
-    then
-        echo "command expects a repository as argument"
-        exit 1
-    fi
-    REPO=$2
-}    
-
-# read_repodir --- reads repodir from the file .config/crema/$REPO
+# read_repodir --- reads repodir from the file $CFGFILE (i.e. '.config/crema.cfg')
 # usage: read_repodir
 read_repodir () {
-    if [[ ! -e "$CONFDIR" || ! -d "$CONFDIR" ]]
+    # check if the config file exists
+    if [[ ! -e $CFGFILE ]]
     then
-        mkdir -p "$CONFDIR"
+        echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
+        exit 1
     fi
-    if [[ ! -e "$CONFDIR"/"$REPO" ]] 
+# TODO
+    # check if path to repository could be determined
+    if [[ -z ${REPODIR+x} ]] || [[ $REPODIR = "" ]]
     then
-        read_repodir_from_keyboard
-        echo $REPODIR > "$CONFDIR/$REPO"
-    else
-        mapfile -n 1 -t < "$CONFDIR/$REPO"
-        if [[ -z ${MAPFILE[0]+x} || ${MAPFILE[0]} == "" ]]
-        then
-            read_repodir_from_keyboard
-            echo $REPODIR > "$CONFDIR/$REPO"
-        else
-            REPODIR=${MAPFILE[0]}
-        fi
+        echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
+        exit 1
     fi
 }
 
-# read_repodir_from_keyboard --- reads repodir from the keyboard input
-# usage: read_repodir_from_keyboard
-read_repodir_from_keyboard () {
-    while [[ -z ${REPODIR+x} || ${REPODIR} == "" ]]
+# exec_makepkg --- execute makepkg
+# usage: exec_makepkg <path-to-PKGBUILD>
+exec_makepkg () {
+    # save current directory
+    ORIGDIR=$PWD
+    # cd into package directory
+    if [ ! -z ${1+x} ]
+    then
+        cd "$1"
+    fi
+    # download local repo incl. packages files
+    download_repo
+    # get packages that are going to be built
+    IFS=$'\n' PKGS_ORIG=($(makepkg --packagelist))
+    for ((i=0; i<${#PKGS_ORIG[@]}; i++));
     do
-        printf "Enter the path to repository %s (the absolute path is required, SSH is supported, the path is stored in the crema configuration): " $REPO ; read REPODIR
+        PKGS[i]=${PKGS_ORIG[i]##/*/}
     done
+    # build packages and remove temporary files
+    makepkg -c
+    # mv package files to temp dir
+    mv -f *.pkg.tar.xz "$TEMPDIR"
+    # add new packages / package versions to custom repository
+    cd "$TEMPDIR"
+    for pkg in ${PKGS[@]}
+    do
+        repo-add -n -R "${REPO}.db.tar.xz" "$pkg"
+    done    
+    cd -
+    # upload adjusted local repo incl. package files
+    upload_repo
+    # cd back to original directory
+    cd "$ORIGDIR"
 }
 
 # download_repo --- download custom repository (incl. package files) to
@@ -182,34 +197,66 @@ upload_repo () {
     rm -rd "${TEMPDIR}"
 }    
 
+################################################################################
+# main program
+################################################################################
+
 # crema needs a command
-if [ $# = 0 ]
+if [[ $# = 0 ]]
 then
-    echo -e "crema expects a command\n"
-    print_help
+    echo "crema expects a command"
     exit 1
 fi
 
-case $1 in
-add | build | rm | update)
-    # save sub command
-    cmd=$1
-    # get REPO and REPODIR
-    shift
-    # --- extract repository from cli arguments
-    get_repo "$@"
-    shift 2
-    # --- read path of repository from config
-    read_repodir
+# check command
+if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "ls" && 1 != "rm" && $1 != "update" ]]
+then
+   echo "'$1' is no valid command"
+   exit 1
+fi
+CMD=$1
+shift
 
-    case $cmd in
+# retrieve arguments
+while [ $# -gt 0 ]
+do
+    case $1 in
+        --repo | -r)
+            # check if repository has been specified
+            if [[ -z ${2+x} ]] || [[ $2 = "" ]]
+            then
+                echo "command needs a repository"
+                exit 1
+            fi
+            REPO=$2
+            shift 2
+            ;;
+        --sign | -s)
+            # check if gpg key is set
+            if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+            then
+                echo "gpg key needs to be set in variable GPGKEY"
+                exit 1
+            fi
+            SIGN=true
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+case $CMD in
     add)
         # any package to add?
-        if [ $# = 0 ]
+        if [[ $# = 0 ]]
         then
             echo "no package to add"
             exit 0
         fi
+        # get path to repository
+        read_repodir
         # download local repo incl. packages files
         download_repo
         # add packages
@@ -220,45 +267,67 @@ add | build | rm | update)
         ;;
 
     build)
-        # save current directory
-        ORIGDIR=$PWD
-        # cd into package directory
-        if [ ! -z ${1+x} ]
-        then
-            cd "$2"
-        fi
-        # download local repo incl. packages files
-        download_repo
-        # get packages that are going to be built
-        IFS=$'\n' PKGS_ORIG=($(makepkg --packagelist))
-        for ((i=0; i<${#PKGS_ORIG[@]}; i++));
-        do
-            PKGS[i]=${PKGS_ORIG[i]##/*/}
-        done
-        # build packages and remove temporary files
-        makepkg -c
-        # mv package files to temp dir
-        mv -f *.pkg.tar.xz "$TEMPDIR"
-        # add new packages / package versions to custom repository
-        cd "$TEMPDIR"
-        for pkg in ${PKGS[@]}
-        do
-            repo-add -n -R "${REPO}.db.tar.xz" "$pkg"
-        done    
-        cd -
-        # upload adjusted local repo incl. package files
-        upload_repo
-        # cd back to original directory
-        cd "$ORIGDIR"
+        read_repodir
+        exec_makepkg $1
         ;;
 
-    rm)
+    env)
+        [[ -e $CFGFILE ]] || exit 0
+
+        # initialize local variables
+        declare -i len=10      # set max length to the length of "REPOSITORY"
+        declare -i counter=0   # count number of entries
+        declare -a repos=()    # repository array
+        declare -a repodirs=() # array of repo paths
+        
+        while IFS='|' read repo repodir
+        do
+            if [[ $len -lt ${#repo} ]]
+            then
+                len=${#repo}
+            fi
+            repos+=($repo)
+            repodirs+=($repodir)
+            counter+=1
+        done < $CFGFILE
+        # nothing to do if conf file doesn't contain repo data
+        [[ $counter -gt 0 ]] ||  exit 0
+        # print headline
+        printf "%-${len}s %s\n" "REPOSITORY" "PATH"
+        # print content
+        for ((i=0; i<$counter; i++));
+        do
+            printf "%-${len}s %s\n" ${repos[i]} ${repodirs[i]}
+        done
+        ;;    
+
+    help)
+        if [[ $# = 0 ]]
+        then
+            print_help
+            exit 0
+        fi
+        if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" ]]
+        then
+            echo "no help available for '$1'"
+            exit 1
+        fi
+        print_help_$1
+        ;;
+
+    ls)
+        shift
+        pacman -Sl ${REPO}
+        ;;
+
+    rm)    
         # any package to remove?
-        if [ $# = 0 ]
+        if [[ $# = 0 ]]
         then
             echo "no package to remove"
             exit 0
         fi
+        read_repodir
         # download local repo incl. packages files
         download_repo
         # remove packages from local repo db and remove package files
@@ -274,6 +343,7 @@ add | build | rm | update)
         ;;
 
     update)
+        read_repodir
         # download local repo incl. packages files
         download_repo
         # update outdated packages
@@ -283,62 +353,14 @@ add | build | rm | update)
         # upload adjusted local repo incl. package files
         upload_repo
         ;;
-    esac
-    ;;
 
-env)
-    len=10   # set max length to the length of "REPOSITORY"
-    repos=() # repo array
-    for path in $(find "$CONFDIR" -type f)
-    do
-        # remove left part of path to get the repo name
-        repo=${path##/*/}
-        # store repo in repo array
-        repos+=("$repo")
-        if [[ $len -lt ${#repo} ]]
-        then
-            len=${#repo}
-        fi
-    done
-    if [[ ! -z ${repos+x} ]]
-    then
-        # print headline
-        printf "%-${len}s %s\n" "REPOSITORY" "PATH"
-        for repo in $repos
-        do
-            mapfile -n 1 -t < "$CONFDIR/$repo"
-            printf "%-${len}s %s\n" $repo ${MAPFILE[0]}
-        done
-    fi
-    ;;    
+    version)
+        echo "crema version $VERSION"
+        ;;    
 
-help)
-    shift
-    if [ $# = 0 ]
-    then
+    *)
+        echo -e "unknown command\n"
         print_help
-        exit 0
-    fi
-    if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" ]]
-    then
-        echo "no help available for '$1'"
         exit 1
-    fi
-    print_help_$1
-    ;;
-
-ls)
-    shift
-    pacman -Sl ${REPO}
-    ;;
-
-version)
-    echo "crema version $VERSION"
-    ;;    
-
-*)
-    echo -e "unknown command\n"
-    print_help
-    exit 1
-    ;;
+        ;;
 esac
