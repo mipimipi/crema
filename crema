@@ -268,7 +268,18 @@ case $CMD in
 
     build)
         read_repodir
-        exec_makepkg $1
+        # if list of PKGBUILD paths is empty ...
+        if [[ $# = 0 ]]
+        then
+            # ... assume that PKGBUILD is in current path
+            exec_makepkg $PWD
+        else
+            # otherwise: call makepkg for every path of the argument list
+            for path in "$@"
+            do
+                exec_makepkg $1
+            done
+        fi
         ;;
 
     env)
@@ -363,4 +374,4 @@ case $CMD in
         print_help
         exit 1
         ;;
-esai
+esac
