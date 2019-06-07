@@ -133,7 +133,7 @@ read_repodir () {
         echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
         exit 1
     fi
-# TODO
+    REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < $CFGFILE)
     # check if path to repository could be determined
     if [[ -z ${REPODIR+x} ]] || [[ $REPODIR = "" ]]
     then
@@ -363,4 +363,4 @@ case $CMD in
         print_help
         exit 1
         ;;
-esac
+esai
