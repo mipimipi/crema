@@ -21,8 +21,10 @@ Another option is a manual installation. For this, clone this repository and cop
 ## Configuration
 
 crema requires information about the repositories (name and path). This needs to be stored in the configuration file `$XDG_CONFIG_HOME/crema.conf` in the form:
+
     <repository-name>|<path-to-repository>
-[SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form <user>@<server>:<path>. 
+
+[SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form `<user>@<server>:<path>`. 
 
 ## Usage
 
