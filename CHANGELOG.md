@@ -8,7 +8,7 @@
 
 ### Changed
 
-Replaced environment variables `CREMAREPO` and `CREMAREPODIR` by configuration file
+* Replaced environment variables `CREMAREPO` and `CREMAREPODIR` by configuration file
 
 ## [Release 1.1](https://github.com/mipimipi/crema/releases/tag/1.1) (2019-05-20)
 
