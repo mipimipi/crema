@@ -52,14 +52,16 @@ crema helps managing custom repositories. These can contain packages from AUR or
 Usage: crema <command> [<arguments>] 
 
 The commands are:
-  add       Add AUR packages to the custom repository
-  build     Build packages from a PKGBUILD file and add them to the custom repository  
+  add       Add AUR packages to a custom repository
+  build     Build packages from one or multiple PKGBUILD file and add them to the custom repository  
   env       List the repositories and their directories
   help      Help about any command
-  ls        List all packages of the custom repository
-  rm        Remove AUR packages from the custom repository
-  update    Update all outdated AUR packages in the custom repository  
+  ls        List all packages of a custom repository
+  rm        Remove AUR packages from a custom repository
+  update    Update all outdated AUR packages in a custom repository  
   version   Display version of crema
+
+add, build, ls, rm and update require information about the repository that they are to be applied (name and path). This information needs to be maintained in the configuration file \$XDG_CONFIG_HOME/crema.conf in the form <repository-name>|<path-to-repository>. SSH is supported, i.e. the path can be of the form <user>@<server>:<path>.
 
 Use "crema help <command>" for more information about any command.
 EOF
@@ -71,7 +73,7 @@ print_help_add () {
     cat <<EOF
 Usage: crema add (--repo | -r) <repository> <package> [<packages>]
 
-Add AUR packages incl. the corresponding package tarballs to the custom repository.
+Add AUR packages incl. the corresponding package tarballs to a custom repository.
 EOF
 }
 
@@ -79,9 +81,10 @@ EOF
 # usage: print_help_build
 print_help_build () {
     cat <<EOF
-Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [<paths to PKGBUILD>]
+Usage: crema build (--repo | -r) <repository> [--sign] [<paths to PKGBUILD>]
 
-Build packages from a PKGBUILD file and add them and the corresponding packages tarballs to the custom repository. If the command is called without a path, it looks for PKGBUILD in the current path.
+Build packages from one or multiple PKGBUILD files and add them and the corresponding packages tarballs to a custom repository. If the command is called without any path, it looks for PKGBUILD in the current directory.
+If --sign is set, the package is signed with gpg. The key id is taken from the environment variable GPGKEY which can be set in the configuration file of makepkg (see https://wiki.archlinux.org/index.php/Makepkg).
 EOF
 }
 
@@ -101,7 +104,7 @@ print_help_rm () {
     cat <<EOF
 Usage: crema ls <repository>
 
-List all packages of the custom repository
+List all packages of a custom repository
 EOF
 }
 # print_help_rm --- print help text for rm command
@@ -110,7 +113,7 @@ print_help_rm () {
     cat <<EOF
 Usage: crema rm (--repo | -r) <repository> <package> [<packages>]
 
-Remove packages and the corresponding package tarballs from the custom repository
+Remove packages and the corresponding package tarballs from a custom repository
 EOF
 }
 
@@ -120,7 +123,17 @@ print_help_update () {
     cat <<EOF
 Usage: crema update (--repo | -r) <repository>
 
-Update all outdated AUR packages in the custom repository.
+Update all outdated AUR packages in a custom repository.
+EOF
+}
+
+# print_help_update --- print help text for version command
+# usage: print_help_version
+print_help_version () {
+    cat <<EOF
+Usage: crema version
+
+Displays the version of crema.
 EOF
 }
 
@@ -146,7 +159,7 @@ read_repodir () {
 # usage: exec_makepkg <path-to-PKGBUILD>
 exec_makepkg () {
     # save current directory
-    ORIGDIR=$PWD
+    local ORIGDIR=$PWD
     # cd into package directory
     if [ ! -z ${1+x} ]
     then
@@ -160,10 +173,15 @@ exec_makepkg () {
     do
         PKGS[i]=${PKGS_ORIG[i]##/*/}
     done
-    # build packages and remove temporary files
-    makepkg -c
+    # build packages (and sign them if required) and remove temporary files
+    if [[ $SIGN == true ]]
+    then
+        makepkg -c --sign
+    else
+        makepkg -c
+    fi  
     # mv package files to temp dir
-    mv -f *.pkg.tar.xz "$TEMPDIR"
+    mv -f *.pkg.tar.xz* "$TEMPDIR"
     # add new packages / package versions to custom repository
     cd "$TEMPDIR"
     for pkg in ${PKGS[@]}
@@ -209,12 +227,20 @@ then
 fi
 
 # check command
-if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "ls" && 1 != "rm" && $1 != "update" ]]
+if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
 then
-   echo "'$1' is no valid command"
+   echo "crema $1: unknown command. Run 'crema help' for usage."
    exit 1
 fi
-CMD=$1
+# set CMD
+case $1 in
+    --help | -h)
+        CMD="help"
+        ;;
+    *)
+        CMD=$1
+        ;;
+esac
 shift
 
 # retrieve arguments
@@ -231,13 +257,13 @@ do
             REPO=$2
             shift 2
             ;;
-        --sign | -s)
+        --sign)
             # check if gpg key is set
-            if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
-            then
-                echo "gpg key needs to be set in variable GPGKEY"
-                exit 1
-            fi
+            #if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+            #then
+            #    echo "gpg key needs to be set in variable GPGKEY"
+            #    exit 1
+            #fi
             SIGN=true
             shift
             ;;
@@ -272,12 +298,12 @@ case $CMD in
         if [[ $# = 0 ]]
         then
             # ... assume that PKGBUILD is in current path
-            exec_makepkg $PWD
+            exec_makepkg "$PWD"
         else
             # otherwise: call makepkg for every path of the argument list
             for path in "$@"
             do
-                exec_makepkg $1
+                exec_makepkg "$1"
             done
         fi
         ;;
@@ -318,7 +344,7 @@ case $CMD in
             print_help
             exit 0
         fi
-        if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" ]]
+        if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
         then
             echo "no help available for '$1'"
             exit 1
