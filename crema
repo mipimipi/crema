@@ -317,8 +317,13 @@ case $CMD in
         declare -a repos=()    # repository array
         declare -a repodirs=() # array of repo paths
         
+        # determine length of repo column
         while IFS='|' read repo repodir
         do
+            if [[ ${#repo} = 0 ]]
+            then
+                continue
+            fi
             if [[ $len -lt ${#repo} ]]
             then
                 len=${#repo}
