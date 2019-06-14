@@ -259,11 +259,6 @@ do
             ;;
         --sign)
             # check if gpg key is set
-            #if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
-            #then
-            #    echo "gpg key needs to be set in variable GPGKEY"
-            #    exit 1
-            #fi
             SIGN=true
             shift
             ;;
@@ -285,6 +280,11 @@ case $CMD in
         read_repodir
         # download local repo incl. packages files
         download_repo
+        # if there's no database yet: create it
+        if [[ ! -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
+        then
+            repo-add -n -R "${TEMPDIR}/${REPO}.db.tar.xz"
+        fi
         # add packages
         aur sync -d "$REPO" --root="$TEMPDIR" -n "$@" || true
         # upload adjusted local repo incl. package files
