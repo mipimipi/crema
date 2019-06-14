@@ -353,7 +353,6 @@ case $CMD in
         ;;
 
     ls)
-        shift
         pacman -Sl ${REPO}
         ;;
 
