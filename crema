@@ -210,7 +210,7 @@ download_repo () {
 # usage: upload_repo
 upload_repo () {
     # sync local to remote repository
-    rsync -a --delete --no-perms "${TEMPDIR}/" "${REPODIR}"
+    rsync -a -v --delete --no-perms "${TEMPDIR}/" "${REPODIR}"
     # remove temporary directory since it's no longer needed
     rm -rd "${TEMPDIR}"
 }    
@@ -227,7 +227,7 @@ then
 fi
 
 # check command
-if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
+if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
 then
    echo "crema $1: unknown command. Run 'crema help' for usage."
    exit 1
@@ -280,15 +280,19 @@ case $CMD in
         read_repodir
         # download local repo incl. packages files
         download_repo
+        echo "-> downloaded"
         # if there's no database yet: create it
         if [[ ! -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
         then
             repo-add -n -R "${TEMPDIR}/${REPO}.db.tar.xz"
+            echo "-> repo created"
         fi
         # add packages
         aur sync -d "$REPO" --root="$TEMPDIR" -n "$@" || true
+        echo "-> synched"
         # upload adjusted local repo incl. package files
         upload_repo
+        echo "-> uploaded"
         exit 0
         ;;
 
