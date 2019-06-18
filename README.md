@@ -41,6 +41,10 @@ cream has sub commands for the different tasks:
 
 crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg) and [aurutils](https://github.com/AladW/aurutils).
 
+## Known Issues
+
+* Adding AUR packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file. Reason: In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an error.
+
 ## License
 
 [GNU Public License v3.0](https://github.com/mipimipi/crema/blob/master/LICENSE)
