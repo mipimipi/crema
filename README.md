@@ -39,7 +39,7 @@ cream has sub commands for the different tasks:
 
 ## Details
 
-crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg) and [aurutils](https://github.com/AladW/aurutils).
+crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg), [makechrootpkg](https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot) and [aurutils](https://github.com/AladW/aurutils).
 
 ## Known Issues
 

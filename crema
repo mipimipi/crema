@@ -28,11 +28,13 @@ set -uo pipefail
 set -o nounset
 trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
-declare -r VERSION=1.2
-declare -r TEMPDIR=${XDG_CACHE_HOME:-"$HOME"/.tmp}/local-repo
+declare -r VERSION=1.3
+declare -r TEMPDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
+declare -r CHROOTDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/chroots
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
 declare REPO=""
 declare SIGN=false
+declare CHROOT=false
 declare REPODIR=""
 declare CMD=""
 
@@ -74,6 +76,9 @@ print_help_add () {
 Usage: crema add (--repo | -r) <repository> <package> [<packages>]
 
 Add AUR packages incl. the corresponding package tarballs to a custom repository.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>
 EOF
 }
 
@@ -81,10 +86,18 @@ EOF
 # usage: print_help_build
 print_help_build () {
     cat <<EOF
-Usage: crema build (--repo | -r) <repository> [--sign] [<paths to PKGBUILD>]
+Usage: crema build (--repo | -r) <repository> [--sign] [--chroot] [<paths to PKGBUILD>]
 
 Build packages from one or multiple PKGBUILD files and add them and the corresponding packages tarballs to a custom repository. If the command is called without any path, it looks for PKGBUILD in the current directory.
-If --sign is set, the package is signed with gpg. The key id is taken from the environment variable GPGKEY which can be set in the configuration file of makepkg (see https://wiki.archlinux.org/index.php/Makepkg).
+
+Flags:
+   --chroot      Build the package using makechrootpkg. Otherwise makepkg is
+                 used.
+-r --repo <repo> Use custom repository <repo>
+   --sign        Sign the package with gpg. The key id is taken from the
+                 enironment variable GPGKEY which can be set in the
+                 configuration file of makepkg (see
+                 https://wiki.archlinux.org/index.php/Makepkg).
 EOF
 }
 
@@ -105,6 +118,9 @@ print_help_rm () {
 Usage: crema ls <repository>
 
 List all packages of a custom repository
+
+Flags:
+-r --repo <repo> Use custom repository <repo>
 EOF
 }
 # print_help_rm --- print help text for rm command
@@ -124,6 +140,9 @@ print_help_update () {
 Usage: crema update (--repo | -r) <repository>
 
 Update all outdated AUR packages in a custom repository.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>
 EOF
 }
 
@@ -174,12 +193,27 @@ exec_makepkg () {
         PKGS[i]=${PKGS_ORIG[i]##/*/}
     done
     # build packages (and sign them if required) and remove temporary files
-    if [[ $SIGN == true ]]
+    if [[ $CHROOT == true ]]
     then
-        makepkg -c --sign
+        if [[ ! -d "${CHROOTDIR}" ]]
+        then
+            mkdir -p "${CHROOTDIR}"
+            mkarchroot "${CHROOTDIR}/root" base-devel
+        fi
+        if [[ $SIGN == true ]]
+        then
+            makechrootpkg -cu -r "${CHROOTDIR}" -- --sign
+        else
+            makechrootpkg -cu -r "${CHROOTDIR}"
+        fi  
     else
-        makepkg -c
-    fi  
+        if [[ $SIGN == true ]]
+        then
+            makepkg -c --sign
+        else
+            makepkg -c
+        fi  
+    fi    
     # mv package files to temp dir
     mv -f *.pkg.tar.xz* "$TEMPDIR"
     # add new packages / package versions to custom repository
@@ -258,8 +292,11 @@ do
             shift 2
             ;;
         --sign)
-            # check if gpg key is set
             SIGN=true
+            shift
+            ;;
+        --chroot)
+            CHROOT=true
             shift
             ;;
         *)
@@ -365,7 +402,7 @@ case $CMD in
         pacman -Sl ${REPO}
         ;;
 
-    rm)    
+    rm)   
         # any package to remove?
         if [[ $# = 0 ]]
         then

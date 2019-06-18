@@ -1,3 +1,10 @@
+
+## [Release 1.3](https://github.com/mipimipi/crema/releases/tag/1.3) (2019-06-19)
+
+### Added
+
+* Support of `makechrootpkg` to build packages. Default is `makepkg`.
+
 ## [Release 1.2](https://github.com/mipimipi/crema/releases/tag/1.2) (2019-06-08)
 
 ### Added
@@ -19,4 +26,4 @@
 
 ## [Release 1.0](https://github.com/mipimipi/crema/releases/tag/1.0) (2019-05-12)
 
-First ielease suited for productive use.
+First release suited for productive use.
