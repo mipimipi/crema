@@ -192,7 +192,7 @@ exec_makepkg () {
     do
         PKGS[i]=${PKGS_ORIG[i]##/*/}
     done
-    # build packages (and sign them if required) and remove temporary files
+    # build packages (sign them if required) and remove temporary files
     if [[ $CHROOT == true ]]
     then
         if [[ ! -d "${CHROOTDIR}" ]]
@@ -200,11 +200,18 @@ exec_makepkg () {
             mkdir -p "${CHROOTDIR}"
             mkarchroot "${CHROOTDIR}/root" base-devel
         fi
+        makechrootpkg -cu -r "${CHROOTDIR}"
         if [[ $SIGN == true ]]
         then
-            makechrootpkg -cu -r "${CHROOTDIR}" -- --sign
-        else
-            makechrootpkg -cu -r "${CHROOTDIR}"
+            if [[ ! -z ${1+GPGKEY} ]]
+            then
+                for pkg in ${PKGS[@]}
+                do
+                    gpg -u $GPGKEY --output ${pkg}.sig --detach-sign $pkg
+                done    
+            else
+                echo "GPGKEY is not set. Package couldn't be signed."
+            fi
         fi  
     else
         if [[ $SIGN == true ]]
