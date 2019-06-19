@@ -56,14 +56,16 @@ Usage: crema <command> [<arguments>]
 The commands are:
   add       Add AUR packages to a custom repository
   build     Build packages from one or multiple PKGBUILD file and add them to the custom repository  
+  cleanup   Clean up database of one or all custom repositories
   env       List the repositories and their directories
   help      Help about any command
-  ls        List all packages of a custom repository
+  ls        List all packages of one or all custom repositories
   rm        Remove AUR packages from a custom repository
-  update    Update all outdated AUR packages in a custom repository  
+  update    Update all outdated AUR packages of one or all custom repositories  
   version   Display version of crema
 
 Use "crema help <command>" for more information about any command.
+
 EOF
 }
 
@@ -76,11 +78,12 @@ Usage: crema add (--repo | -r) <repository> <package> [<packages>]
 Add AUR packages incl. the corresponding package tarballs to a custom repository.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. The for data transfer, the path
-                 to the repository is needed. It needs to be maintained in the
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
                  <repository-name>|<path-to-repository>. SSH is supported,
                  i.e. the path can be of the form <user>@<server>:<path>.
+
 EOF
 }
 
@@ -95,8 +98,8 @@ Build packages from one or multiple PKGBUILD files and add them and the correspo
 Flags:
    --chroot      Build the package using makechrootpkg. Otherwise makepkg is
                  used.
--r --repo <repo> Use custom repository <repo>. The for data transfer, the path
-                 to the repository is needed. It needs to be maintained in the
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
                  <repository-name>|<path-to-repository>. SSH is supported,
                  i.e. the path can be of the form <user>@<server>:<path>.
@@ -104,6 +107,25 @@ Flags:
                  enironment variable GPGKEY which can be set in the
                  configuration file of makepkg (see
                  https://wiki.archlinux.org/index.php/Makepkg).
+
+EOF
+}
+
+# print_help_cleanup --- print help text for cleanup command
+# usage: print_help_cleanup
+print_help_cleanup () {
+    cat <<EOF
+Usage: crema cleanup [(--repo | -r) <repository>]
+
+Cleanup repository database. If no repository is given, then the cleanup is done for all custom repositories. Otherwise only the database of the given repository are cleaned up.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+
 EOF
 }
 
@@ -114,6 +136,7 @@ print_help_env () {
 Usage: crema env
 
 List the repositories that crema knows and their paths.
+
 EOF
 }
 
@@ -124,6 +147,7 @@ print_help_rm () {
 Usage: crema ls [<repository>]
 
 List all packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are listed.
+
 EOF
 }
 
@@ -136,11 +160,12 @@ Usage: crema rm (--repo | -r) <repository> <package> [<packages>]
 Remove packages and the corresponding package tarballs from a custom repository
 
 Flags:
--r --repo <repo> Use custom repository <repo>. The for data transfer, the path
-                 to the repository is needed. It needs to be maintained in the
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
                  <repository-name>|<path-to-repository>. SSH is supported,
                  i.e. the path can be of the form <user>@<server>:<path>.
+
 EOF
 }
 
@@ -153,11 +178,12 @@ Usage: crema update [(--repo | -r) <repository>]
 Update all outdated AUR packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are updated.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. The for data transfer, the path
-                 to the repository is needed. It needs to be maintained in the
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
                  <repository-name>|<path-to-repository>. SSH is supported,
                  i.e. the path can be of the form <user>@<server>:<path>.
+
 EOF
 }
 
@@ -168,6 +194,7 @@ print_help_version () {
 Usage: crema version
 
 Displays the version of crema.
+
 EOF
 }
 
@@ -187,6 +214,24 @@ read_repodir () {
         echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
         exit 1
     fi
+}
+
+# exec_cleanup --- execute cleanup
+# usage: exec_cleanup
+exec_cleanup () {
+    # download local repo incl. packages files
+    download_repo
+    # loop at all packages of the repo $REPO
+    pacman -Sl ${REPO} | cut -d " " -f 2,3 | while read pkg rel
+    do
+        if [[ -z $(find "$TEMPDIR" -maxdepth 1 -name "${pkg}-${rel}-*.pkg.tar.xz") ]]
+        then
+            echo "removing $pkg from $REPO"
+            repo-remove "${TEMPDIR}/${REPO}.db.tar.xz" "$pkg"
+        fi
+    done
+    # upload adjusted local repo incl. package files
+    upload_repo
 }
 
 # exec_makepkg --- execute makepkg
@@ -300,7 +345,7 @@ then
 fi
 
 # check command
-if [[ $1 != "add" && $1 != "build" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
+if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
 then
    echo "crema $1: unknown command. Run 'crema help' for usage."
    exit 1
@@ -384,6 +429,27 @@ case $CMD in
         fi
         ;;
 
+    cleanup)
+        # update package databases
+        sudo pacman -Sy
+        # if no repo has been specified: ...
+        if [[ -n $REPO ]]
+        then
+            read_repodir
+            exec_cleanup
+        else
+            # cleanup all repos ...
+            while IFS='|' read REPO REPODIR
+            do
+                if [[ ${#REPO} = 0 ]]
+                then
+                    continue
+                fi
+                exec_cleanup
+            done < $CFGFILE
+        fi
+        ;;
+
     env)
         [[ -e $CFGFILE ]] || exit 0
 
@@ -425,7 +491,7 @@ case $CMD in
             print_help
             exit 0
         fi
-        if [[ $1 != "add" && $1 != "build" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
+        if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
         then
             echo "no help available for '$1'"
             exit 1
@@ -435,20 +501,16 @@ case $CMD in
 
     ls)
         # if no repo has been specified: ...
-        if [[ -z ${REPO+x} ]]
+        if [[ -n $REPO ]]
         then
-            # list packages of all all repos ...
-            while IFS='|' read REPO REPODIR
-            do
-                if [[ ${#REPO} = 0 ]]
-                then
-                    continue
-                fi
-                pacman -Sl ${REPO}
-            done < $CFGFILE
-        else
             # ... otherwise: list packages of the repo that is specified
             pacman -Sl ${REPO}
+        else    
+            # list packages of all all repos ...
+            cut -d "|" -f 1 $CFGFILE | while read REPO
+            do
+                pacman -Sl ${REPO}
+            done
         fi    
         ;;
 
@@ -480,8 +542,12 @@ case $CMD in
 
     update)
         # if no repo has been specified: ...
-        if [[ -z ${REPO+x} ]]
+        if [[ -n $REPO ]]
         then
+            # ... otherwise: update repo that is specified
+            read_repodir
+            exec_update
+        else    
             # update all repos ...
             while IFS='|' read REPO REPODIR
             do
@@ -491,10 +557,6 @@ case $CMD in
                 fi
                 exec_update
             done < $CFGFILE
-        else
-            # ... otherwise: update repo that is specified
-            read_repodir
-            exec_update
         fi    
         ;;
 

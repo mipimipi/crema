@@ -4,6 +4,8 @@
 ### Added
 
 * Support of `makechrootpkg` to build packages. Default is `makepkg`.
+* Commands `ls` and `update` can now work for all repositories at once.
+* New command `cleanup` to make the repository consistent.
 
 ## [Release 1.2](https://github.com/mipimipi/crema/releases/tag/1.2) (2019-06-08)
 
