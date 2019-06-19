@@ -117,7 +117,7 @@ print_help_rm () {
     cat <<EOF
 Usage: crema ls <repository>
 
-List all packages of a custom repository
+List all packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are listed.
 
 Flags:
 -r --repo <repo> Use custom repository <repo>
@@ -137,9 +137,9 @@ EOF
 # usage: print_help_update
 print_help_update () {
     cat <<EOF
-Usage: crema update (--repo | -r) <repository>
+Usage: crema update [(--repo | -r) <repository>]
 
-Update all outdated AUR packages in a custom repository.
+Update all outdated AUR packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are updated.
 
 Flags:
 -r --repo <repo> Use custom repository <repo>
@@ -236,6 +236,23 @@ exec_makepkg () {
     cd "$ORIGDIR"
 }
 
+# exec_update --- execute update
+# usage: exec_update
+exec_update () {
+    # download local repo incl. packages files
+    download_repo
+    # update only makes sense if there's already a database
+    if [[ -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
+    then
+        # update outdated packages
+        cd "$TEMPDIR"
+        aur sync -d "$REPO" --root="$TEMPDIR" -u -n || true
+        cd -
+        # upload adjusted local repo incl. package files
+        upload_repo
+    fi
+}        
+
 # download_repo --- download custom repository (incl. package files) to
 # temporary directory
 # usage: download_repo
@@ -251,7 +268,7 @@ download_repo () {
 # usage: upload_repo
 upload_repo () {
     # sync local to remote repository
-    rsync -a -v --delete --no-perms "${TEMPDIR}/" "${REPODIR}"
+    rsync -a --delete --no-perms "${TEMPDIR}/" "${REPODIR}"
     # remove temporary directory since it's no longer needed
     rm -rd "${TEMPDIR}"
 }    
@@ -324,19 +341,15 @@ case $CMD in
         read_repodir
         # download local repo incl. packages files
         download_repo
-        echo "-> downloaded"
         # if there's no database yet: create it
         if [[ ! -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
         then
             repo-add -n -R "${TEMPDIR}/${REPO}.db.tar.xz"
-            echo "-> repo created"
         fi
         # add packages
         aur sync -d "$REPO" --root="$TEMPDIR" -n "$@" || true
-        echo "-> synched"
         # upload adjusted local repo incl. package files
         upload_repo
-        echo "-> uploaded"
         exit 0
         ;;
 
@@ -406,7 +419,22 @@ case $CMD in
         ;;
 
     ls)
-        pacman -Sl ${REPO}
+        # if no repo has been specified: ...
+        if [[ -z ${REPO+x} ]]
+        then
+            # list packages of all all repos ...
+            while IFS='|' read REPO REPODIR
+            do
+                if [[ ${#REPO} = 0 ]]
+                then
+                    continue
+                fi
+                pacman -Sl ${REPO}
+            done < $CFGFILE
+        else
+            # ... otherwise: list packages of the repo that is specified
+            pacman -Sl ${REPO}
+        fi    
         ;;
 
     rm)   
@@ -419,28 +447,40 @@ case $CMD in
         read_repodir
         # download local repo incl. packages files
         download_repo
-        # remove packages from local repo db and remove package files
-        cd "$TEMPDIR"
-        repo-remove "${REPO}.db.tar.xz" "$@"
-        for pkg in $@
-        do
-            rm -f "$pkg"*pkg.tar.xz
-        done
-        cd -
-        # upload adjusted local repo incl. package files
-        upload_repo
+        # removal only makes sense if there's already a database
+        if [[ -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
+        then
+            # remove packages from local repo db and remove package files
+            cd "$TEMPDIR"
+            repo-remove "${REPO}.db.tar.xz" "$@"
+            for pkg in $@
+            do
+                rm -f "$pkg"*pkg.tar.xz
+            done
+            cd -
+            # upload adjusted local repo incl. package files
+            upload_repo
+        fi    
         ;;
 
     update)
-        read_repodir
-        # download local repo incl. packages files
-        download_repo
-        # update outdated packages
-        cd "$TEMPDIR"
-        aur sync -d "$REPO" --root="$TEMPDIR" -u -n || true
-        cd -
-        # upload adjusted local repo incl. package files
-        upload_repo
+        # if no repo has been specified: ...
+        if [[ -z ${REPO+x} ]]
+        then
+            # update all repos ...
+            while IFS='|' read REPO REPODIR
+            do
+                if [[ ${#REPO} = 0 ]]
+                then
+                    continue
+                fi
+                exec_update
+            done < $CFGFILE
+        else
+            # ... otherwise: update repo that is specified
+            read_repodir
+            exec_update
+        fi    
         ;;
 
     version)
