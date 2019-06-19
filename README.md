@@ -32,10 +32,11 @@ cream has sub commands for the different tasks:
 
 * `crema add`  adds AUR packages incl. corresponding package tarballs to a custom repository
 * `crema build` builds packages from one or multiple PKGBUILD files and adds them and the corresponding package tarballs to a custom repository
+* `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema env` lists the repositories and their diretories
-* `crema ls` lists all packages of a repository
+* `crema ls` lists all packages of one or all repositories
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
-* `cream update` updates all outdated AUR packages in a custom repository.
+* `cream update` updates all outdated AUR packages in one or all custom repositories.
 
 ## Details
 
