@@ -142,11 +142,18 @@ EOF
 
 # print_help_ls --- print help text for ls command
 # usage: print_help_ls
-print_help_rm () {
+print_help_ls () {
     cat <<EOF
 Usage: crema ls [<repository>]
 
 List all packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are listed.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
 
 EOF
 }
@@ -198,22 +205,54 @@ Displays the version of crema.
 EOF
 }
 
+# read_db --- reads database of repo $REPO
+# usage: read_db
+read_db () {
+    local -a pkgs
+    local pkg
+
+    mapfile -t pkgs < <( tar -tf "${TEMPDIR}/${REPO}.db.tar.xz")
+
+    for pkg in "${pkgs[@]}"
+    do
+        if [[ $pkg =~ .+/$ ]]
+        then
+            echo "$REPO ${pkg%/}"
+        fi    
+    done
+}    
+
 # read_repodir --- reads repodir from the file $CFGFILE (i.e. '.config/crema.cfg')
 # usage: read_repodir
 read_repodir () {
     # check if the config file exists
     if [[ ! -e $CFGFILE ]]
     then
-        echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
+        echo "a repository path for '$REPO' needs to be maintained in $CFGFILE"
         exit 1
     fi
-    REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < $CFGFILE)
+    REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
     # check if path to repository could be determined
     if [[ -z ${REPODIR+x} ]] || [[ $REPODIR = "" ]]
     then
-        echo "a repository path for '$REPO'needs to be maintained in $CFGFILE"
+        echo "a repository path for '$REPO' needs to be maintained in $CFGFILE"
         exit 1
     fi
+}
+
+
+# clean_up --- do cleanup
+# usage: clean_up
+clean_up () {
+    # loop at all packages of the repo $REPO
+    read_db | cut -d " " -f 2 | while read -r pkg
+    do
+        if [[ -z $(find "$TEMPDIR" -maxdepth 1 -name "${pkg}*.pkg.tar.xz") ]]
+        then
+            echo "removing $pkg from $REPO"
+            repo-remove "${TEMPDIR}/${REPO}.db.tar.xz" "$pkg"
+        fi
+    done
 }
 
 # exec_cleanup --- execute cleanup
@@ -221,15 +260,19 @@ read_repodir () {
 exec_cleanup () {
     # download local repo incl. packages files
     download_repo
-    # loop at all packages of the repo $REPO
-    pacman -Sl ${REPO} | cut -d " " -f 2,3 | while read pkg rel
-    do
-        if [[ -z $(find "$TEMPDIR" -maxdepth 1 -name "${pkg}-${rel}-*.pkg.tar.xz") ]]
-        then
-            echo "removing $pkg from $REPO"
-            repo-remove "${TEMPDIR}/${REPO}.db.tar.xz" "$pkg"
-        fi
-    done
+    # list packages
+    clean_up
+    # upload adjusted local repo incl. package files
+    upload_repo
+}
+
+# exec_ls --- execute package listing
+# usage: exec_ls
+exec_ls () {
+    # download local repo incl. packages files
+    download_repo
+    # list packages
+    read_db
     # upload adjusted local repo incl. package files
     upload_repo
 }
@@ -240,7 +283,7 @@ exec_makepkg () {
     # save current directory
     local ORIGDIR=$PWD
     # cd into package directory
-    if [ ! -z ${1+x} ]
+    if [[ -n "$1" ]]
     then
         cd "$1"
     fi
@@ -265,7 +308,7 @@ exec_makepkg () {
         then
             if [[ ! -z ${1+GPGKEY} ]]
             then
-                for pkg in ${PKGS[@]}
+                for pkg in "${PKGS[@]}"
                 do
                     gpg -u $GPGKEY --output ${pkg}.sig --detach-sign $pkg
                 done    
@@ -285,7 +328,7 @@ exec_makepkg () {
     mv -f *.pkg.tar.xz* "$TEMPDIR"
     # add new packages / package versions to custom repository
     cd "$TEMPDIR"
-    for pkg in ${PKGS[@]}
+    for pkg in "${PKGS[@]}"
     do
         repo-add -n -R "${REPO}.db.tar.xz" "$pkg"
     done    
@@ -307,6 +350,8 @@ exec_update () {
         # update outdated packages
         cd "$TEMPDIR"
         aur sync -d "$REPO" --root="$TEMPDIR" -u -n || true
+        # remove opsolete package files
+        clean_up
         cd -
         # upload adjusted local repo incl. package files
         upload_repo
@@ -430,15 +475,14 @@ case $CMD in
         ;;
 
     cleanup)
-        # update package databases
-        sudo pacman -Sy
-        # if no repo has been specified: ...
+        # if a repo has been specified: ...
         if [[ -n $REPO ]]
         then
+            # ... cleanup that repo, ...
             read_repodir
             exec_cleanup
         else
-            # cleanup all repos ...
+            # ... otherwise: cleanup all repos
             while IFS='|' read REPO REPODIR
             do
                 if [[ ${#REPO} = 0 ]]
@@ -491,7 +535,7 @@ case $CMD in
             print_help
             exit 0
         fi
-        if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $$1 != "ls" && 1 != "rm" && $1 != "update" && $1 != "version" ]]
+        if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
         then
             echo "no help available for '$1'"
             exit 1
@@ -500,17 +544,22 @@ case $CMD in
         ;;
 
     ls)
-        # if no repo has been specified: ...
+        # if repo has been specified: ...
         if [[ -n $REPO ]]
         then
-            # ... otherwise: list packages of the repo that is specified
-            pacman -Sl ${REPO}
+            # ... list packages of that repo, ...
+            read_repodir
+            exec_ls
         else    
-            # list packages of all all repos ...
-            cut -d "|" -f 1 $CFGFILE | while read REPO
+            # ... otherwise: update all repos
+            while IFS='|' read -r REPO REPODIR
             do
-                pacman -Sl ${REPO}
-            done
+                if [[ ${#REPO} = 0 ]]
+                then
+                    continue
+                fi
+                exec_ls
+            done < $CFGFILE
         fi    
         ;;
 
@@ -530,7 +579,7 @@ case $CMD in
             # remove packages from local repo db and remove package files
             cd "$TEMPDIR"
             repo-remove "${REPO}.db.tar.xz" "$@"
-            for pkg in $@
+            for pkg in "$@"
             do
                 rm -f "$pkg"*pkg.tar.xz
             done
@@ -541,15 +590,15 @@ case $CMD in
         ;;
 
     update)
-        # if no repo has been specified: ...
+        # if repo has been specified: ...
         if [[ -n $REPO ]]
         then
-            # ... otherwise: update repo that is specified
+            # ... update repo that is specified, ...
             read_repodir
             exec_update
         else    
-            # update all repos ...
-            while IFS='|' read REPO REPODIR
+            # ... otherwise: update all repos
+            while IFS='|' read -r REPO REPODIR
             do
                 if [[ ${#REPO} = 0 ]]
                 then
