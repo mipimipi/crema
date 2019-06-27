@@ -204,6 +204,40 @@ GPGKEY           Id of the key that is used by gpg for signing.
 
 EOF
             ;;
+        sign)
+cat <<EOF
+Usage: crema sign (--repo | -r) <repository>
+
+Sign a repository, incl. the repository database and all package files.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+
+Environment:
+GPGKEY           Id of the key that is used by gpg for signing.
+
+EOF
+            ;;
+        unsign)
+cat <<EOF
+Usage: crema unsign (--repo | -r) <repository>
+
+Remove signatures from a repository, i.e. all *.sig files are deleted, incl.
+the *.sig files of the repository database and all package files.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+
+EOF
+            ;;
         update)
 cat <<EOF
 Usage: crema update [(--repo | -r) <repository>]
@@ -254,6 +288,8 @@ The commands are:
   help      Help about any command
   ls        List all packages of one or all custom repositories
   rm        Remove AUR packages from a custom repository
+  sign      Sign a custom repository with gpg
+  unsign    Remove signatures from a custom repository
   update    Update all outdated AUR packages of one or all custom repositories  
   version   Display version of crema
 
@@ -275,10 +311,12 @@ clean_up () {
     # loop at all packages of the repo $REPO
     read_db | cut -d " " -f 2 | while read -r pkg
     do
-        if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 -name "${pkg}*.pkg.tar.xz") ]]
+        if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 \
+            -name "${pkg}*.pkg.tar.xz") ]]
         then
             msg "removing $pkg from $REPO"
-            repo-remove ${SIGNARGS_REPO[@]} "${TEMPREPODIR}/${REPO}.db.tar.xz" "$pkg"
+            repo-remove ${SIGNARGS_REPO[@]} "${TEMPREPODIR}/${REPO}.db.tar.xz" \
+                "$pkg"
         fi
     done
 }
@@ -317,7 +355,8 @@ parse_args () {
     # check command
     if [[ $1 != "add" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
         && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" \
-        && $1 != "update" && $1 != "version" ]]
+        && $1 != "sign" && $1 != "unsign" && $1 != "update" \
+        && $1 != "version" ]]
     then
         error "crema $1: unknown command. Run 'crema help' for usage."
         crema_exit 1
@@ -672,6 +711,72 @@ case $CMD in
             rm -f "$pkg"*pkg.tar.xz.sig
         done
         cd -
+        # upload adjusted local repo incl. package files
+        upload_repo
+        ;;
+
+    sign)
+        # GPGKEY must be set
+        if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+        then
+            error "GPGKEY is not set"
+            crema_exit 1
+        fi
+        # repository must be specified
+        if [[ -z ${REPO+x} || $REPO = "" ]]
+        then
+            error "repository is needed"
+            crema_exit 1
+        fi
+        read_repodir
+        # download local repo incl. packages files
+        download_repo
+        # check if repo is already signed
+        if [[ -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
+        then
+            msg "\'$REPO\' is already signed, nothing to do"
+            crema_exit 0
+        fi
+        for file in "$TEMPREPODIR"/*
+        do
+            # symbolic links are handled separately
+            [[ -L "$file" ]] && continue
+            # nothing to do for signature files
+            [[ "$file" = *.sig ]] && continue
+            # nothing to do for old files
+            [[ "$file" = *.old ]] && continue
+            # nothing to do if a signature file for $file already exists
+            [[ -e "$file.sig" ]] && continue
+            # create signature file
+            gpg -u $GPGKEY --output "$file.sig" --detach-sign "$file"
+        done
+        # handle symbolic links
+        cd "$TEMPREPODIR"
+        [[ -e "$REPO.db.sig" ]] || ln -s "$REPO.db.tar.xz.sig" "$REPO.db.sig"
+        [[ -e "$REPO.file.sig" ]] || ln -s "$REPO.files.tar.xz.sig" "$REPO.files.sig"
+        cd -
+        # upload adjusted local repo incl. package files
+        upload_repo
+        ;;
+
+    unsign)
+        # repository must be specified
+        if [[ -z ${REPO+x} || $REPO = "" ]]
+        then
+            error "repository is needed"
+            crema_exit 1
+        fi
+        read_repodir
+        # download local repo incl. packages files
+        download_repo
+        # check if repo is already signed
+        if [[ ! -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
+        then
+            msg "\'$REPO\' is not signed, nothing to do"
+            crema_exit 0
+        fi
+        # remove signature files
+        rm -f "$TEMPREPODIR"/*.sig
         # upload adjusted local repo incl. package files
         upload_repo
         ;;
