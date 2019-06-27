@@ -30,15 +30,15 @@ declare -r TEMPREPODIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
 declare -r PKGDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/pkg
 declare -r TEMPFILE=${XDG_DATA_HOME:-"$HOME"/.local}/crema/temp.file
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
-declare CMD=           # sub command
-declare SIGNARGS_AUR=  # sign arguments for aurutils
-declare SIGNARGS_REPO= # sign arguments for repo-* tools
-declare CHROOTARGS=()  # chroot aragumantes
-declare -a REMARGS=()  # remaining arguments
-declare REPO=          # repository
-declare REPODIR=       # remote repository directory
-declare SOURCE=        # source for add sub command. Can be either "aur" or
-                       # "local" 
+declare CMD=              # sub command
+declare SIGNARGS_AUR=     # sign arguments for aurutils
+declare SIGNARGS_REPO=    # sign arguments for repo-* tools
+declare CHROOTARGS=("-c") # chroot arguments
+declare -a REMARGS=()     # remaining arguments
+declare REPO=             # repository
+declare REPODIR=          # remote repository directory
+declare SOURCE=           # source for add sub command. Can be either "aur" or
+                          # "local" 
 
 
 ################################################################################
@@ -109,16 +109,14 @@ print_help () {
     case $topic in
         add)
 cat <<EOF
-Usage: crema add (--repo | -r) <repository> [--sign] [--chroot] (
-                 (-f:aur | --from:aur) <list of AUR package names> |
-                 (-f:local | --from:local) [<paths to PKGBUILD>])
+Usage: crema add (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
+                 ((-f:aur | --from:aur) <list of AUR package names> |
+                  (-f:local | --from:local) [<paths to PKGBUILD>])
 
 Build and add packages to repository. The packages could either come from AUR
 the PKGBUILD files can be located in the local file system.
 
 Flags:
--c       --chroot      Build the package using makechrootpkg. Otherwise makepkg
-                       is used.
 -f:aur   --from:aur    Add packages from AUR. This flag msut be followed by a a
                        list of package names.
 -f:local --from:local  Add packages whose PKGBUILD files are located in the
@@ -126,6 +124,8 @@ Flags:
                        of directories of the PKGBUILD files. If this list is 
                        empty, crema assumes a PKGBUILD file in the current
                        directory.
+-n       --nochroot    Per default, makechrootpkg is used to build packages. If
+                       this flag is set, makepkg is used instead.
 -r       --repo <repo> Use custom repository <repo>. For data transfer, the
                        path to the repository is needed. It needs to be
                        maintained in the configuration file
@@ -213,8 +213,8 @@ for all custom repositories. Otherwise only the packages of the given repository
 are updated.
 
 Flags:
--c --chroot      Build the package using makechrootpkg. Otherwise makepkg is
-                 used.
+-n --nochroot    Per default, makechrootpkg is used to build packages. If this
+                 flag is set, makepkg is used instead.
 -r --repo <repo> Use custom repository <repo>. For data transfer, the path to
                  the repository is needed. It needs to be maintained in the
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
@@ -357,8 +357,8 @@ parse_args () {
                 SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
                 shift
                 ;;
-            --chroot | -c)
-                CHROOTARGS=("-c")
+            --nochroot | -n)
+                CHROOTARGS=()
                 shift
                 ;;
             -f:aur | --from:aur | -f:local | --from:local)
@@ -502,7 +502,7 @@ case $CMD in
                 for pkg in "${REMARGS[@]}"
                 do
                     # check if $pkg exists in AUR
-                    aur search $pkg
+                    aur search $pkg >/dev/null
                     if [[ $? -gt 0 ]]
                     then 
                         error "package \'$pkg\' not found in AUR"
