@@ -16,46 +16,239 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with crema. If not, see <http://www.gnu.org/licenses/>.
-#
-# This script is based on the work of Michael Daffin on managing
-# Arch Linux install. See: https://github.com/mdaffin/arch-pkgs
 
 ################################################################################
-# global declarations
+# global declarations                                                          #
 ################################################################################
 
 set -uo pipefail
 set -o nounset
-trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
+#trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; crema_exit $s' ERR
 
-declare -r VERSION=1.3
-declare -r TEMPDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
-declare -r CHROOTDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/chroots
+declare -r VERSION=1.4
+declare -r TEMPREPODIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
+declare -r PKGDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/pkg
+declare -r TEMPFILE=${XDG_DATA_HOME:-"$HOME"/.local}/crema/temp.file
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
-declare REPO=""
-declare SIGN=false
-declare CHROOT=false
-declare REPODIR=""
-declare CMD=""
+declare CMD=           # sub command
+declare SIGNARGS_AUR=  # sign arguments for aurutils
+declare SIGNARGS_REPO= # sign arguments for repo-* tools
+declare CHROOTARGS=()  # chroot aragumantes
+declare -a REMARGS=()  # remaining arguments
+declare REPO=          # repository
+declare REPODIR=       # remote repository directory
+declare SOURCE=        # source for add sub command. Can be either "aur" or
+                       # "local" 
+
 
 ################################################################################
-# functions
+# messages (taken from makepkg coding)                                         #
+################################################################################
+
+colorize() {
+    # prefer terminal safe colored and bold text when tput is supported
+    if tput setaf 0 &>/dev/null; then
+        ALL_OFF="$(tput sgr0)"
+        BOLD="$(tput bold)"
+        BLUE="${BOLD}$(tput setaf 4)"
+        GREEN="${BOLD}$(tput setaf 2)"
+        RED="${BOLD}$(tput setaf 1)"
+        YELLOW="${BOLD}$(tput setaf 3)"
+    else
+        ALL_OFF="\e[0m"
+        BOLD="\e[1m"
+        BLUE="${BOLD}\e[34m"
+        GREEN="${BOLD}\e[32m"
+        RED="${BOLD}\e[31m"
+        YELLOW="${BOLD}\e[33m"
+    fi
+    readonly ALL_OFF BOLD BLUE GREEN RED YELLOW
+}
+ 
+plain() {
+    local mesg=$1; shift
+    printf "${BOLD}    ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+ 
+msg() {
+    local mesg=$1; shift
+    printf "${GREEN}==>${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+ 
+msg2() {
+    local mesg=$1; shift
+    printf "${BLUE}  ->${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+ 
+warning() {
+    local mesg=$1; shift
+    printf "${YELLOW}==> $(gettext "WARNING:")${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+ 
+error() {
+    local mesg=$1; shift
+    printf "${RED}==> $(gettext "ERROR:")${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+
+################################################################################
+# help                                                                         #
 ################################################################################
 
 # print_help --- print help text
-# usage: print_help
+# usage: print_help <topic>
 print_help () {
-    cat <<EOF
+    # set help topic
+    if [[ -z ${1+x} ]]
+    then
+        topic=""
+    else
+        topic=$1
+    fi    
+
+    case $topic in
+        add)
+cat <<EOF
+Usage: crema add (--repo | -r) <repository> [--sign] [--chroot] (
+                 (-f:aur | --from:aur) <list of AUR package names> |
+                 (-f:local | --from:local) [<paths to PKGBUILD>])
+
+Build and add packages to repository. The packages could either come from AUR
+the PKGBUILD files can be located in the local file system.
+
+Flags:
+-c       --chroot      Build the package using makechrootpkg. Otherwise makepkg
+                       is used.
+-f:aur   --from:aur    Add packages from AUR. This flag msut be followed by a a
+                       list of package names.
+-f:local --from:local  Add packages whose PKGBUILD files are located in the
+                       local file system. This flag can be followed by a list
+                       of directories of the PKGBUILD files. If this list is 
+                       empty, crema assumes a PKGBUILD file in the current
+                       directory.
+-r       --repo <repo> Use custom repository <repo>. For data transfer, the
+                       path to the repository is needed. It needs to be
+                       maintained in the configuration file
+                       \$XDG_CONFIG_HOME/crema.conf in the form 
+                       <repository-name>|<path-to-repository>. SSH is
+                       supported, i.e. the path can be of the form
+                       <user>@<server>:<path>.
+-s --sign              Sign the package and the repository database with gpg.
+
+Environment:
+GPGKEY                 Id of the key that is used by gpg for signing.
+
+EOF
+            ;;
+        cleanup)
+cat <<EOF
+Usage: crema cleanup [(--repo | -r) <repository>]
+
+Cleanup repository database. If no repository is given, then the cleanup is done
+for all custom repositories. Otherwise only the database of the given repository
+are cleaned up.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+-s --sign        Sign the package and the repository database with gpg.
+
+Environment:
+GPGKEY           Id of the key that is used by gpg for signing.
+
+EOF
+            ;;
+        env)
+cat <<EOF
+Usage: crema env
+
+List the repositories that crema knows and their paths.
+
+EOF
+            ;;
+        ls)
+cat <<EOF
+Usage: crema ls [<repository>]
+
+List all packages. If no repository is given, then that's done for all custom
+repositories. Otherwise only the packages of the given repository are listed.
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+
+EOF
+            ;;
+        rm)
+cat <<EOF
+Usage: crema rm (--repo | -r) <repository> <package> [<packages>]
+
+Remove packages and the corresponding package tarballs from a custom repository
+
+Flags:
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+-s --sign        Sign the package and the repository database with gpg.
+
+Environment:
+GPGKEY           Id of the key that is used by gpg for signing.
+
+EOF
+            ;;
+        update)
+cat <<EOF
+Usage: crema update [(--repo | -r) <repository>]
+
+Update all outdated AUR packages. If no repository is given, then that's done
+for all custom repositories. Otherwise only the packages of the given repository
+are updated.
+
+Flags:
+-c --chroot      Build the package using makechrootpkg. Otherwise makepkg is
+                 used.
+-r --repo <repo> Use custom repository <repo>. For data transfer, the path to
+                 the repository is needed. It needs to be maintained in the
+                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
+                 <repository-name>|<path-to-repository>. SSH is supported,
+                 i.e. the path can be of the form <user>@<server>:<path>.
+-s --sign        Sign the package and the repository database with gpg.
+
+Environment:
+GPGKEY           Id of the key that is used by gpg for signing.
+
+EOF
+            ;;
+        version)
+cat <<EOF
+Usage: crema version
+
+Displays the version of crema.
+
+EOF
+            ;;
+        *)
+cat <<EOF
 crema $VERSION
 Copyright (C) 2019 Michael Picht <https://github.com/mipimipi/crema>
 
-crema helps managing custom repositories. These can contain packages from AUR or other, user-defined packages. With crema, packages can be added, removed, built, updated etc.
+crema helps managing custom repositories. These can contain packages from AUR or
+other, user-defined packages. With crema, packages can be added, removed, built,
+updated etc.
 
 Usage: crema <command> [<arguments>] 
 
 The commands are:
-  add       Add AUR packages to a custom repository
-  build     Build packages from one or multiple PKGBUILD file and add them to the custom repository  
+  add       Build and add packages either from AUR or local file system to a
+            custom repository
   cleanup   Clean up database of one or all custom repositories
   env       List the repositories and their directories
   help      Help about any command
@@ -67,142 +260,123 @@ The commands are:
 Use "crema help <command>" for more information about any command.
 
 EOF
+            ;;
+    esac
 }
 
-# print_help_add --- print help text for add command
-# usage: print_help_add
-print_help_add () {
-    cat <<EOF
-Usage: crema add (--repo | -r) <repository> <package> [<packages>]
 
-Add AUR packages incl. the corresponding package tarballs to a custom repository.
+################################################################################
+# functions                                                                    #
+################################################################################
 
-Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
-
-EOF
+# clean_up --- do cleanup
+# usage: clean_up
+clean_up () {
+    # loop at all packages of the repo $REPO
+    read_db | cut -d " " -f 2 | while read -r pkg
+    do
+        if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 -name "${pkg}*.pkg.tar.xz") ]]
+        then
+            msg "removing $pkg from $REPO"
+            repo-remove ${SIGNARGS_REPO[@]} "${TEMPREPODIR}/${REPO}.db.tar.xz" "$pkg"
+        fi
+    done
 }
 
-# print_help_build --- print help text for build command
-# usage: print_help_build
-print_help_build () {
-    cat <<EOF
-Usage: crema build (--repo | -r) <repository> [--sign] [--chroot] [<paths to PKGBUILD>]
-
-Build packages from one or multiple PKGBUILD files and add them and the corresponding packages tarballs to a custom repository. If the command is called without any path, it looks for PKGBUILD in the current directory.
-
-Flags:
-   --chroot      Build the package using makechrootpkg. Otherwise makepkg is
-                 used.
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
-   --sign        Sign the package with gpg. The key id is taken from the
-                 enironment variable GPGKEY which can be set in the
-                 configuration file of makepkg (see
-                 https://wiki.archlinux.org/index.php/Makepkg).
-
-EOF
+# crema_exit --- delete temporary data and exit the program
+# usage: crema_exit <exit-code>
+crema_exit () {
+    rm -rdf $TEMPREPODIR $PKGDIR
+    rm -f $TEMPFILE
+    exit $1
 }
 
-# print_help_cleanup --- print help text for cleanup command
-# usage: print_help_cleanup
-print_help_cleanup () {
-    cat <<EOF
-Usage: crema cleanup [(--repo | -r) <repository>]
+# download_repo --- download custom repository (incl. package files) to
+# temporary directory
+# usage: download_repo
+download_repo () {
+    # create temporary repository directory
+    mkdir -p "$TEMPREPODIR"
+    # sync remote to custom repository
+    rsync -a "${REPODIR}/" "${TEMPREPODIR}"     
+    # verify gpg signature of repo
+    verify_signature "$TEMPREPODIR/$REPO.db.tar.xz"
+    verify_signature "$TEMPREPODIR/$REPO.files.tar.xz"
+}     
 
-Cleanup repository database. If no repository is given, then the cleanup is done for all custom repositories. Otherwise only the database of the given repository are cleaned up.
+# parse_args --- parse command line arguments
+# usage: parse_args <command-line-arguments>
+parse_args () {
+    # crema needs a command
+    if [[ $# = 0 ]]
+    then
+        error "crema expects a command"
+        crema_exit 1
+    fi
 
-Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+    # check command
+    if [[ $1 != "add" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
+        && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" \
+        && $1 != "update" && $1 != "version" ]]
+    then
+        error "crema $1: unknown command. Run 'crema help' for usage."
+        crema_exit 1
+    fi
+    # set CMD
+    case $1 in
+        --help | -h)
+            CMD="help"
+            ;;
+        *)
+            CMD=$1
+            ;;
+    esac
+    shift
 
-EOF
-}
+    # retrieve arguments
+    while (( "$#" ))
+    do
+        case $1 in
+            --repo | -r)
+                # check if repository has been specified
+                if [[ -z ${2+x} ]] || [[ $2 = "" ]]
+                then
+                    error "command needs a repository"
+                    crema_exit 1
+                fi
+                REPO=$2
+                shift 2
+                ;;
+            --sign | -s)
+                if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+                then
+                    error "packages/repository database shall be signed with gpg but GPGKEY is not set"
+                    crema_exit 1
+                fi
+                SIGNARGS_AUR+=("-s")
+                SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
+                shift
+                ;;
+            --chroot | -c)
+                CHROOTARGS=("-c")
+                shift
+                ;;
+            -f:aur | --from:aur | -f:local | --from:local)
+                SOURCE=${1#-*:}
+                shift
+                ;;
+            -f:* | --from:*)
+                error "wrong source for flag '-f/--from'. crema supports 'aur' or 'local, e.g. '-f:aur'"
+                crema_exit 1
+                ;;
 
-# print_help_env --- print help text for env command
-# usage: print_help_env
-print_help_env () {
-    cat <<EOF
-Usage: crema env
+            *)
+                break
+                ;;
+        esac
+    done
 
-List the repositories that crema knows and their paths.
-
-EOF
-}
-
-# print_help_ls --- print help text for ls command
-# usage: print_help_ls
-print_help_ls () {
-    cat <<EOF
-Usage: crema ls [<repository>]
-
-List all packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are listed.
-
-Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
-
-EOF
-}
-
-# print_help_rm --- print help text for rm command
-# usage: print_help_rm
-print_help_rm () {
-    cat <<EOF
-Usage: crema rm (--repo | -r) <repository> <package> [<packages>]
-
-Remove packages and the corresponding package tarballs from a custom repository
-
-Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
-
-EOF
-}
-
-# print_help_update --- print help text for update command
-# usage: print_help_update
-print_help_update () {
-    cat <<EOF
-Usage: crema update [(--repo | -r) <repository>]
-
-Update all outdated AUR packages. If no repository is given, then that's done for all custom repositories. Otherwise only the packages of the given repository are updated.
-
-Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
-
-EOF
-}
-
-# print_help_update --- print help text for version command
-# usage: print_help_version
-print_help_version () {
-    cat <<EOF
-Usage: crema version
-
-Displays the version of crema.
-
-EOF
+    REMARGS=($@)
 }
 
 # read_db --- reads database of repo $REPO
@@ -211,7 +385,7 @@ read_db () {
     local -a pkgs
     local pkg
 
-    mapfile -t pkgs < <( tar -tf "${TEMPDIR}/${REPO}.db.tar.xz")
+    mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
 
     for pkg in "${pkgs[@]}"
     do
@@ -228,274 +402,192 @@ read_repodir () {
     # check if the config file exists
     if [[ ! -e $CFGFILE ]]
     then
-        echo "a repository path for '$REPO' needs to be maintained in $CFGFILE"
-        exit 1
+        error "a repository path for '$REPO' needs to be maintained in $CFGFILE"
+        crema_exit 1
     fi
     REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
     # check if path to repository could be determined
     if [[ -z ${REPODIR+x} ]] || [[ $REPODIR = "" ]]
     then
-        echo "a repository path for '$REPO' needs to be maintained in $CFGFILE"
-        exit 1
+        error "a repository path for '$REPO' needs to be maintained in $CFGFILE"
+        crema_exit 1
     fi
 }
-
-
-# clean_up --- do cleanup
-# usage: clean_up
-clean_up () {
-    # loop at all packages of the repo $REPO
-    read_db | cut -d " " -f 2 | while read -r pkg
-    do
-        if [[ -z $(find "$TEMPDIR" -maxdepth 1 -name "${pkg}*.pkg.tar.xz") ]]
-        then
-            echo "removing $pkg from $REPO"
-            repo-remove "${TEMPDIR}/${REPO}.db.tar.xz" "$pkg"
-        fi
-    done
-}
-
-# exec_cleanup --- execute cleanup
-# usage: exec_cleanup
-exec_cleanup () {
-    # download local repo incl. packages files
-    download_repo
-    # list packages
-    clean_up
-    # upload adjusted local repo incl. package files
-    upload_repo
-}
-
-# exec_ls --- execute package listing
-# usage: exec_ls
-exec_ls () {
-    # download local repo incl. packages files
-    download_repo
-    # list packages
-    read_db
-    # upload adjusted local repo incl. package files
-    upload_repo
-}
-
-# exec_makepkg --- execute makepkg
-# usage: exec_makepkg <path-to-PKGBUILD>
-exec_makepkg () {
-    # save current directory
-    local ORIGDIR=$PWD
-    # cd into package directory
-    if [[ -n "$1" ]]
-    then
-        cd "$1"
-    fi
-    # download local repo incl. packages files
-    download_repo
-    # get packages that are going to be built
-    IFS=$'\n' PKGS_ORIG=($(makepkg --packagelist))
-    for ((i=0; i<${#PKGS_ORIG[@]}; i++));
-    do
-        PKGS[i]=${PKGS_ORIG[i]##/*/}
-    done
-    # build packages (sign them if required) and remove temporary files
-    if [[ $CHROOT == true ]]
-    then
-        if [[ ! -d "${CHROOTDIR}" ]]
-        then
-            mkdir -p "${CHROOTDIR}"
-            mkarchroot "${CHROOTDIR}/root" base-devel
-        fi
-        makechrootpkg -cu -r "${CHROOTDIR}"
-        if [[ $SIGN == true ]]
-        then
-            if [[ ! -z ${1+GPGKEY} ]]
-            then
-                for pkg in "${PKGS[@]}"
-                do
-                    gpg -u $GPGKEY --output ${pkg}.sig --detach-sign $pkg
-                done    
-            else
-                echo "GPGKEY is not set. Package couldn't be signed."
-            fi
-        fi  
-    else
-        if [[ $SIGN == true ]]
-        then
-            makepkg -c --sign
-        else
-            makepkg -c
-        fi  
-    fi    
-    # mv package files to temp dir
-    mv -f *.pkg.tar.xz* "$TEMPDIR"
-    # add new packages / package versions to custom repository
-    cd "$TEMPDIR"
-    for pkg in "${PKGS[@]}"
-    do
-        repo-add -n -R "${REPO}.db.tar.xz" "$pkg"
-    done    
-    cd -
-    # upload adjusted local repo incl. package files
-    upload_repo
-    # cd back to original directory
-    cd "$ORIGDIR"
-}
-
-# exec_update --- execute update
-# usage: exec_update
-exec_update () {
-    # download local repo incl. packages files
-    download_repo
-    # update only makes sense if there's already a database
-    if [[ -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
-    then
-        # update outdated packages
-        cd "$TEMPDIR"
-        aur sync -d "$REPO" --root="$TEMPDIR" -u -n || true
-        # remove opsolete package files
-        clean_up
-        cd -
-        # upload adjusted local repo incl. package files
-        upload_repo
-    fi
-}        
-
-# download_repo --- download custom repository (incl. package files) to
-# temporary directory
-# usage: download_repo
-download_repo () {
-    # create temporary repository directory
-    mkdir -p "$TEMPDIR"
-    # sync remote to custom repository
-    rsync -a "${REPODIR}/" "${TEMPDIR}"     
-}     
 
 # upload_repo --- upload to custom repository (incl. package files) and delete
 # temporary directory
 # usage: upload_repo
 upload_repo () {
     # sync local to remote repository
-    rsync -a --delete --no-perms "${TEMPDIR}/" "${REPODIR}"
-    # remove temporary directory since it's no longer needed
-    rm -rd "${TEMPDIR}"
+    rsync -a --delete --no-perms "${TEMPREPODIR}/" "${REPODIR}"
 }    
 
+# set_signargs --- sets SIGNARGS_* signargs even if --sign wasn't set on
+# command line, but if the repository database was signed, SIGNARGS_* must be
+# set
+# usage: set_signargs
+set_signargs () {
+    if [[ -e "${TEMPREPODIR}/$REPO.db.tar.xz.sig" ]]
+    then
+        if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+        then
+            error "the repository database was signed, and the sign flag was not set on command line. crema wants to sign the database again, but GPGKEY is not set"
+            crema_exit 1
+        fi
+        SIGNARGS_AUR+=("-s")
+        SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
+    fi
+}
+
+# verify_signature --- verifies gpg signature of a file
+# usage: verify_signature <file>
+verify_signature () {
+    [[ ! -z ${1+x} ]] || return 0
+    [[ -e "$1" ]] || return 0
+
+    if [[ -e "$1.sig" ]]
+    then
+        gpg --verify "$1.sig" "$1" > /dev/null
+        if (( $? ))
+        then
+            error "$1 has bad signature"
+            crema_exit 1
+        fi    
+    fi
+}
+
+
 ################################################################################
-# main program
+# main program                                                                 #
 ################################################################################
 
-# crema needs a command
-if [[ $# = 0 ]]
-then
-    echo "crema expects a command"
-    exit 1
-fi
+# set message colors
+colorize
 
-# check command
-if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
-then
-   echo "crema $1: unknown command. Run 'crema help' for usage."
-   exit 1
-fi
-# set CMD
-case $1 in
-    --help | -h)
-        CMD="help"
-        ;;
-    *)
-        CMD=$1
-        ;;
-esac
-shift
+# parse command line argumantes
+parse_args $@
 
-# retrieve arguments
-while [ $# -gt 0 ]
-do
-    case $1 in
-        --repo | -r)
-            # check if repository has been specified
-            if [[ -z ${2+x} ]] || [[ $2 = "" ]]
-            then
-                echo "command needs a repository"
-                exit 1
-            fi
-            REPO=$2
-            shift 2
-            ;;
-        --sign)
-            SIGN=true
-            shift
-            ;;
-        --chroot)
-            CHROOT=true
-            shift
-            ;;
-        *)
-            break
-            ;;
-    esac
-done
-
+# execute sub commands
 case $CMD in
     add)
-        # any package to add?
-        if [[ $# = 0 ]]
+        if [[ -z ${SOURCE+x} ]] || [[ $SOURCE = "" ]]
         then
-            echo "no package to add"
-            exit 0
+            error "sub command 'add' requires source, e.g. '--from:aur'"
+            crema_exit 1
+        fi
+
+        # if packages from AUR shall be added, the packages must come from
+        # command line
+        if [[ $SOURCE = "aur" ]] && [[ ${#REMARGS[@]} = 0 ]]
+        then
+            warning "no package to add"
+            crema_exit 0
         fi
         # get path to repository
         read_repodir
         # download local repo incl. packages files
         download_repo
+        set_signargs
         # if there's no database yet: create it
-        if [[ ! -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
+        if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
         then
-            repo-add -n -R "${TEMPDIR}/${REPO}.db.tar.xz"
+            repo-add -n -R "${TEMPREPODIR}/${REPO}.db.tar.xz"
+            upload_repo
         fi
-        # add packages
-        aur sync -d "$REPO" --root="$TEMPDIR" -n "$@" || true
+        # fetch packages from AUR
+        case $SOURCE in
+            aur)
+                mkdir -p $PKGDIR
+                cd "$PKGDIR"
+                for pkg in "${REMARGS[@]}"
+                do
+                    # check if $pkg exists in AUR
+                    aur search $pkg
+                    if [[ $? -gt 0 ]]
+                    then 
+                        error "package \'$pkg\' not found in AUR"
+                        continue
+                    fi
+                    # clone package
+                    aur fetch $pkg
+                done
+                ls > "$TEMPFILE"
+                ;;
+            local)    
+                # build queue for aur build: if list of PKGBUILD paths is empty ...
+                if [[ ${#REMARGS[@]} = 0 ]]
+                then
+                    if [[ ! -e "./PKGBUILD" ]]
+                    then
+                        error "PKGBUILD doesn't exist"
+                        crema_exit 1
+                    fi    
+                    # ... add current path to queue
+                    echo "." > "$TEMPFILE"
+                else
+                    # otherwise: add all remaining arguments to the queue
+                    for dir in ${REMARGS[@]}
+                    do
+                        # check if $dir is a directory
+                        if [[ ! -d "$dir" ]]
+                        then
+                            error "\'$dir\' is not a directory"
+                            continue
+                        fi
+                        # check if $dir contains a PKGBUILD file
+                        if [[ ! -e "$dir/PKGBUILD" ]]
+                        then
+                            error "PKGBUILD doesn't exist in \'$dir\'"
+                            continue
+                        fi
+                        # add $dir to build queue (prior to that: convert it 
+                        # into a relative path if necessary)
+                        if [[ "$dir" = /* ]]
+                        then
+                            realpath --relative-to=. "$dir" > "$TEMPFILE"
+                        else
+                            echo "$dir" > "$TEMPFILE"
+                        fi
+                    done
+                fi
+                ;;
+        esac
+        # build and add packages to local repository
+        if [[ -s "$TEMPFILE" ]]
+        then
+            aur build -d "$REPO" -a "$TEMPFILE" --root="$TEMPREPODIR" -N \
+                ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} || true
+        fi
+        [[ $SOURCE != "aur" ]] || cd -
         # upload adjusted local repo incl. package files
         upload_repo
-        exit 0
-        ;;
-
-    build)
-        read_repodir
-        # if list of PKGBUILD paths is empty ...
-        if [[ $# = 0 ]]
-        then
-            # ... assume that PKGBUILD is in current path
-            exec_makepkg "$PWD"
-        else
-            # otherwise: call makepkg for every path of the argument list
-            for path in "$@"
-            do
-                exec_makepkg "$1"
-            done
-        fi
         ;;
 
     cleanup)
-        # if a repo has been specified: ...
+        # if repo has been specified: ...
         if [[ -n $REPO ]]
         then
-            # ... cleanup that repo, ...
-            read_repodir
-            exec_cleanup
-        else
-            # ... otherwise: cleanup all repos
-            while IFS='|' read REPO REPODIR
-            do
-                if [[ ${#REPO} = 0 ]]
-                then
-                    continue
-                fi
-                exec_cleanup
-            done < $CFGFILE
+            repo=$REPO
         fi
+
+        while IFS='|' read -r REPO REPODIR
+        do
+            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            then
+                continue
+            fi
+            # download local repo incl. packages files
+            download_repo
+            set_signargs
+            # remove obsolete package file
+            clean_up
+            # upload adjusted local repo incl. package files
+            upload_repo
+        done < $CFGFILE
         ;;
 
     env)
-        [[ -e $CFGFILE ]] || exit 0
+        [[ -e $CFGFILE ]] || crema_exit 0
 
         # initialize local variables
         declare -i len=10      # set max length to the length of "REPOSITORY"
@@ -519,7 +611,7 @@ case $CMD in
             counter+=1
         done < $CFGFILE
         # nothing to do if conf file doesn't contain repo data
-        [[ $counter -gt 0 ]] ||  exit 0
+        [[ $counter -gt 0 ]] ||  crema_exit 0
         # print headline
         printf "%-${len}s %s\n" "REPOSITORY" "PATH"
         # print content
@@ -530,83 +622,91 @@ case $CMD in
         ;;    
 
     help)
-        if [[ $# = 0 ]]
-        then
-            print_help
-            exit 0
-        fi
-        if [[ $1 != "add" && $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "ls" && $1 != "rm" && $1 != "update" && $1 != "version" ]]
-        then
-            echo "no help available for '$1'"
-            exit 1
-        fi
-        print_help_$1
+        print_help ${REMARGS[@]}
         ;;
 
     ls)
         # if repo has been specified: ...
         if [[ -n $REPO ]]
         then
-            # ... list packages of that repo, ...
-            read_repodir
-            exec_ls
-        else    
-            # ... otherwise: update all repos
-            while IFS='|' read -r REPO REPODIR
-            do
-                if [[ ${#REPO} = 0 ]]
-                then
-                    continue
-                fi
-                exec_ls
-            done < $CFGFILE
-        fi    
+            repo=$REPO
+        fi
+
+        while IFS='|' read -r REPO REPODIR
+        do
+            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            then
+                continue
+            fi
+                        
+            # download local repo incl. packages files
+            download_repo
+            # list packages
+            read_db
+        done < $CFGFILE
         ;;
 
     rm)   
         # any package to remove?
         if [[ $# = 0 ]]
         then
-            echo "no package to remove"
-            exit 0
+            error "no package to remove"
+            crema_exit 0
         fi
         read_repodir
         # download local repo incl. packages files
         download_repo
+        set_signargs
         # removal only makes sense if there's already a database
-        if [[ -e "${TEMPDIR}/${REPO}.db.tar.xz" ]]
+        if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
         then
-            # remove packages from local repo db and remove package files
-            cd "$TEMPDIR"
-            repo-remove "${REPO}.db.tar.xz" "$@"
-            for pkg in "$@"
-            do
-                rm -f "$pkg"*pkg.tar.xz
-            done
-            cd -
-            # upload adjusted local repo incl. package files
-            upload_repo
+            warning "there no repository database (yet): nothing to remove"
+            crema_exit 1
         fi    
+        # remove packages from local repo db and remove package files
+        cd "$TEMPREPODIR"
+        repo-remove ${SIGNARGS_REPO[@]} "${REPO}.db.tar.xz" "$REMARGS"
+        for pkg in "$REMARGS"
+        do
+            rm -f "$pkg"*pkg.tar.xz
+            rm -f "$pkg"*pkg.tar.xz.sig
+        done
+        cd -
+        # upload adjusted local repo incl. package files
+        upload_repo
         ;;
 
     update)
         # if repo has been specified: ...
         if [[ -n $REPO ]]
         then
-            # ... update repo that is specified, ...
-            read_repodir
-            exec_update
-        else    
-            # ... otherwise: update all repos
-            while IFS='|' read -r REPO REPODIR
-            do
-                if [[ ${#REPO} = 0 ]]
-                then
-                    continue
-                fi
-                exec_update
-            done < $CFGFILE
-        fi    
+            repo=$REPO
+        fi
+
+        while IFS='|' read -r REPO REPODIR
+        do
+            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            then
+                continue
+            fi
+                        
+            # download local repo incl. packages files
+            download_repo
+            set_signargs
+            # update only makes sense if there's already a database
+            if [[ -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
+            then
+                # update outdated packages
+                cd "$TEMPREPODIR"
+                aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
+                    ${SIGNARGS_AUR[@]} || true
+                # remove opsolete package files
+                clean_up
+                cd -
+                # upload adjusted local repo incl. package files
+                upload_repo
+            fi
+        done    
         ;;
 
     version)
@@ -614,9 +714,10 @@ case $CMD in
         ;;    
 
     *)
-        echo -e "unknown command\n"
+        error -e "unknown command\n"
         print_help
-        exit 1
+        crema_exit 1
         ;;
 esac
 
+crema_exit 0
