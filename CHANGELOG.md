@@ -6,8 +6,8 @@
 * New commands `sign` and `unsign` to sign / unsign an entire repository with gpg (incl. repository database and package files)
 * Additional checks for `cleanup` command:
     * Check for package files that do not have a corresponding entry in the package database
-    * Check for signature files that don't have a corresponding data file
-* Convenience logic for signining: If a repository is signed, and it shall be changed without but the `--sign` flag isn't set, the flag is set implicitly
+    * Check for signature files that do not have a corresponding data file
+* Convenience logic for signing: If a repository is signed, and it shall be changed without but the `--sign` flag isn't set, the flag is set implicitly
 
 ### Changed
 
