@@ -1,20 +1,20 @@
 # crema
 
-[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage such repositories. They can for example contain [Meta packages](docs/meta-packages.md) or packages from [AUR](https://aur.archlinux.org/), the Arch Linux user repository.
-
-Meta packages (and thus also custom repositories), are a great means to automate the [installation of Arch Linux](https://wiki.archlinux.org/index.php/installation_guide). Get detailed information about how a (more) automated installation of Arch Linux can be achieved [here](docs/automation.md).
+[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage them. Such repositories can contain local packages (i.e. where the [PKGBUILD file](https://wiki.archlinux.org/index.php/PKGBUILD) is located in the local filesystem) or packages from the [AUR](https://aur.archlinux.org/), the Arch Linux user repository.
 
 ## Features
 
 crema supports the following tasks:
 
-* Building meta packages from [PKGBUILD](https://wiki.archlinux.org/index.php/PKGBUILD) files
-* Adding and removing AUR packages
-* Updating AUR packages
+* Building packages
+* Adding and removing packages
+* Updating packages
+* Signing / unsigning packages and repositories
+* Cleaning up repositories
 
 ## Installation
 
-There is an [AUR package for crema](https://aur.archlinux.org/packages/crema-git/) that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur) or [trizen](https://github.com/trizen/trizen). The crema script is then stored in `/usr/bin`.
+There is an [AUR package for crema](https://aur.archlinux.org/packages/crema-git/) that can be installed with tools such as [pacaur](https://github.com/E5ten/pacaur), [trizen](https://github.com/trizen/trizen) or [yay](https://github.com/Jguer/yay). The crema script is then stored in `/usr/bin`.
 
 Another option is a manual installation. For this, clone this repository and copy the crema script to a directory of your choice.
 
@@ -30,21 +30,22 @@ crema requires information about the repositories (name and path). This needs to
 
 cream has sub commands for the different tasks:
 
-* `crema add`  adds AUR packages incl. corresponding package tarballs to a custom repository
-* `crema build` builds packages from one or multiple PKGBUILD files and adds them and the corresponding package tarballs to a custom repository
+* `crema add` builds and adds packages incl. corresponding package tarballs to a custom repository
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema env` lists the repositories and their diretories
 * `crema ls` lists all packages of one or all repositories
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
+* `cream sign` sign a entire repository (incl. the database and the package files) with [gpg](https://gnupg.org/)
+* `crema unsign` remove signatures from a repository (incl. the database and the package files)
 * `cream update` updates all outdated AUR packages in one or all custom repositories.
 
 ## Details
 
-crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg), [makechrootpkg](https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot) and [aurutils](https://github.com/AladW/aurutils).
+Basically, crema is a wrapper around `repo-add`, `repo-remove` (both part of the [pacman](https://wiki.archlinux.org/index.php/Pacman) package), [makepkg](https://wiki.archlinux.org/index.php/Makepkg), [makechrootpkg](https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot) and [aurutils](https://github.com/AladW/aurutils). It uses [rsync](https://wiki.archlinux.org/index.php/Rsync), to transfer repositories between remote locations and the local filesystem and the above-mentioned tools to manipulate the local copy. At the end of each crema command the local copy is removed since it's obsolete.
 
 ## Known Issues
 
-* Adding AUR packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file. Reason: In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an error.
+* Adding packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file. Reason: In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an `rsync` error. In such situations `cream cleanup` helps to resolve potential inconsistencies.
 
 ## License
 

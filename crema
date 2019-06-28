@@ -626,7 +626,7 @@ case $CMD in
                 fi
             done
 
-            # check if all package file are represented in the repo dbo
+            # check if all package file are represented in the repo db
             mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
             for file in "$TEMPREPODIR"/*.pkg.tar.xz
             do

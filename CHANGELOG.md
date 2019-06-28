@@ -1,11 +1,29 @@
 
+## [Release 1.4](https://github.com/mipimipi/crema/releases/tag/1.4) (2019-06-29)
+
+### Added
+
+* New commands `sign` and `unsign` to sign / unsign an entire repository with gpg (incl. repository database and package files)
+* Additional checks for `cleanup` command:
+    * Check for package files that do not have a corresponding entry in the package database
+    * Check for signature files that don't have a corresponding data file
+* Convenience logic for signining: If a repository is signed, and it shall be changed without but the `--sign` flag isn't set, the flag is set implicitly
+
+### Changed
+
+* Combined `add` and `build`commands:
+    * So far, both commands built packages and added them to a repository. The only differences were the sources: Whereas `add` took PKGBUILD's from AUR, `build` took them from the local filesystem.
+    * Now, there's only the `add` command which has an addtional flag `--from:<source>` where source can either be `aur` or `local`
+* Using `makechrootpkg` to build packages is now the default. If `makepkg` shall be used instead, flag `--nochroot` has to be set.
+* Comprehensive refactoring 
+
 ## [Release 1.3](https://github.com/mipimipi/crema/releases/tag/1.3) (2019-06-19)
 
 ### Added
 
 * Support of `makechrootpkg` to build packages. Default is `makepkg`.
 * Commands `ls` and `update` can now work for all repositories at once.
-* New command `cleanup` to make the repository consistent.
+* New command `cleanup` to make a repository consistent.
 
 ## [Release 1.2](https://github.com/mipimipi/crema/releases/tag/1.2) (2019-06-08)
 
