@@ -305,20 +305,11 @@ EOF
 # functions                                                                    #
 ################################################################################
 
-# clean_up --- do cleanup
-# usage: clean_up
-clean_up () {
-    # loop at all packages of the repo $REPO
-    read_db | cut -d " " -f 2 | while read -r pkg
-    do
-        if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 \
-            -name "${pkg}*.pkg.tar.xz") ]]
-        then
-            msg "removing $pkg from $REPO"
-            repo-remove ${SIGNARGS_REPO[@]} "${TEMPREPODIR}/${REPO}.db.tar.xz" \
-                "$pkg"
-        fi
-    done
+# cleanup_temp --- cleanup temp data
+# usage: cleanup_temp
+cleanup_temp () {
+    rm -rdf "$TEMPREPODIR" "$PKGDIR"
+    rm -f "$TEMPFILE"
 }
 
 # crema_exit --- delete temporary data and exit the program
@@ -503,6 +494,9 @@ verify_signature () {
 # set message colors
 colorize
 
+# clean up potential leftovers from last run
+cleanup_temp
+
 # parse command line argumantes
 parse_args $@
 
@@ -618,8 +612,45 @@ case $CMD in
             # download local repo incl. packages files
             download_repo
             set_signargs
-            # remove obsolete package file
-            clean_up
+
+            # check if all package in the repo db have corresponding package
+            # files
+            read_db | cut -d " " -f 2 | while read -r pkg
+            do
+                if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 \
+                    -name "${pkg}*.pkg.tar.xz") ]]
+                then
+                    msg "package file for \'$pkg\' doesnt' exist -> remove package from repository"
+                    repo-remove ${SIGNARGS_REPO[@]} \
+                        "${TEMPREPODIR}/${REPO}.db.tar.xz" "$pkg"
+                fi
+            done
+
+            # check if all package file are represented in the repo dbo
+            mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
+            for file in "$TEMPREPODIR"/*.pkg.tar.xz
+            do
+                # extract package name from $file
+                pkg=${file##/*/}
+                pkg=${pkg%-*.pkg.tar.xz}
+                # check if repo contains that package, if not: remove files
+                if [[ ! " ${pkgs[@]} " =~ " $pkg/" ]]
+                then
+                    mgs "\'$pkg\' is not contained in repository database -> remove packages file(s)"
+                    rm -f "$pkg".pkg.tar.xz "$pkg".pkg.tar.xz.sig
+                fi
+            done
+
+            # check if every sig file has a corresponding data file
+            for sig in "$TEMPREPODIR"/*.sig
+            do
+                file=${sig%.sig}
+                if [[ ! -e "$file" ]]
+                then
+                    msg "sig file \'$sig\' doesn't have a corresponding data file -> remove file"
+                    rm -f "$sig"
+                fi
+            done
             # upload adjusted local repo incl. package files
             upload_repo
         done < $CFGFILE
