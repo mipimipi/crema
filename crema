@@ -33,7 +33,7 @@ declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
 declare CMD=              # sub command
 declare SIGNARGS_AUR=     # sign arguments for aurutils
 declare SIGNARGS_REPO=    # sign arguments for repo-* tools
-declare CHROOTARGS=("-c") # chroot arguments
+declare CHROOTARGS=("-c") # chroot arguments (chroot is the default)
 declare -a REMARGS=()     # remaining arguments
 declare REPO=             # repository
 declare REPODIR=          # remote repository directory
@@ -305,7 +305,7 @@ EOF
 # functions                                                                    #
 ################################################################################
 
-# cleanup_temp --- cleanup temp data
+# cleanup_temp --- clean up temp data
 # usage: cleanup_temp
 cleanup_temp () {
     rm -rdf "$TEMPREPODIR" "$PKGDIR"
@@ -349,7 +349,7 @@ parse_args () {
         && $1 != "sign" && $1 != "unsign" && $1 != "update" \
         && $1 != "version" ]]
     then
-        error "crema $1: unknown command. Run 'crema help' for usage."
+        error "crema $1: Unknown command. Run 'crema help' for usage."
         crema_exit 1
     fi
     # set CMD
@@ -371,7 +371,7 @@ parse_args () {
                 # check if repository has been specified
                 if [[ -z ${2+x} ]] || [[ $2 = "" ]]
                 then
-                    error "command needs a repository"
+                    error "Command needs a repository"
                     crema_exit 1
                 fi
                 REPO=$2
@@ -380,7 +380,7 @@ parse_args () {
             --sign | -s)
                 if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
                 then
-                    error "packages/repository database shall be signed with gpg but GPGKEY is not set"
+                    error "GPGKEY must be set"
                     crema_exit 1
                 fi
                 SIGNARGS_AUR+=("-s")
@@ -396,7 +396,7 @@ parse_args () {
                 shift
                 ;;
             -f:* | --from:*)
-                error "wrong source for flag '-f/--from'. crema supports 'aur' or 'local, e.g. '-f:aur'"
+                error "\'${1#-*:}\' is not a valid source"
                 crema_exit 1
                 ;;
 
@@ -432,14 +432,14 @@ read_repodir () {
     # check if the config file exists
     if [[ ! -e $CFGFILE ]]
     then
-        error "a repository path for '$REPO' needs to be maintained in $CFGFILE"
+        error "No path for '$REPO' found: Maintain \'$CFGFILE\'"
         crema_exit 1
     fi
     REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
     # check if path to repository could be determined
-    if [[ -z ${REPODIR+x} ]] || [[ $REPODIR = "" ]]
+    if [[ -z ${REPODIR+x} || $REPODIR = "" ]]
     then
-        error "a repository path for '$REPO' needs to be maintained in $CFGFILE"
+        error "No path for '$REPO' found: Maintain \'$CFGFILE\'"
         crema_exit 1
     fi
 }
@@ -459,9 +459,9 @@ upload_repo () {
 set_signargs () {
     if [[ -e "${TEMPREPODIR}/$REPO.db.tar.xz.sig" ]]
     then
-        if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+        if [[ -z ${GPGKEY+x} || $GPGKEY = "" ]]
         then
-            error "the repository database was signed, and the sign flag was not set on command line. crema wants to sign the database again, but GPGKEY is not set"
+            error "Repository is signed, but GPGKEY is not set"
             crema_exit 1
         fi
         SIGNARGS_AUR+=("-s")
@@ -477,10 +477,10 @@ verify_signature () {
 
     if [[ -e "$1.sig" ]]
     then
-        gpg --verify "$1.sig" "$1" > /dev/null
+        gpg --verify "$1.sig" "$1" >/dev/null
         if (( $? ))
         then
-            error "$1 has bad signature"
+            error "\'$1\' has bad signature"
             crema_exit 1
         fi    
     fi
@@ -503,18 +503,18 @@ parse_args $@
 # execute sub commands
 case $CMD in
     add)
-        if [[ -z ${SOURCE+x} ]] || [[ $SOURCE = "" ]]
+        if [[ -z ${SOURCE+x} || $SOURCE = "" ]]
         then
-            error "sub command 'add' requires source, e.g. '--from:aur'"
+            error "Command requires source"
             crema_exit 1
         fi
 
         # if packages from AUR shall be added, the packages must come from
         # command line
-        if [[ $SOURCE = "aur" ]] && [[ ${#REMARGS[@]} = 0 ]]
+        if [[ $SOURCE = "aur" && ${#REMARGS[@]} = 0 ]]
         then
-            warning "no package to add"
-            crema_exit 0
+            error "No package to add"
+            crema_exit 1
         fi
         # get path to repository
         read_repodir
@@ -538,7 +538,7 @@ case $CMD in
                     aur search $pkg >/dev/null
                     if [[ $? -gt 0 ]]
                     then 
-                        error "package \'$pkg\' not found in AUR"
+                        error "Package \'$pkg\' not found in AUR"
                         continue
                     fi
                     # clone package
@@ -620,9 +620,9 @@ case $CMD in
                 if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 \
                     -name "${pkg}*.pkg.tar.xz") ]]
                 then
-                    msg "package file for \'$pkg\' doesnt' exist -> remove package from repository"
                     repo-remove ${SIGNARGS_REPO[@]} \
                         "${TEMPREPODIR}/${REPO}.db.tar.xz" "$pkg"
+                    plain "Package file for \'$pkg\' doesnt' exist: Package removed from repository"
                 fi
             done
 
@@ -636,8 +636,8 @@ case $CMD in
                 # check if repo contains that package, if not: remove files
                 if [[ ! " ${pkgs[@]} " =~ " $pkg/" ]]
                 then
-                    mgs "\'$pkg\' is not contained in repository database -> remove packages file(s)"
                     rm -f "$pkg".pkg.tar.xz "$pkg".pkg.tar.xz.sig
+                    plain "\'$pkg\' not contained in repository database: Package file(s) removed"
                 fi
             done
 
@@ -647,10 +647,11 @@ case $CMD in
                 file=${sig%.sig}
                 if [[ ! -e "$file" ]]
                 then
-                    msg "sig file \'$sig\' doesn't have a corresponding data file -> remove file"
                     rm -f "$sig"
+                    plain "\'$sig\' doesn't have a corresponding data file: File removed"
                 fi
             done
+
             # upload adjusted local repo incl. package files
             upload_repo
         done < $CFGFILE
@@ -720,8 +721,8 @@ case $CMD in
         # any package to remove?
         if [[ $# = 0 ]]
         then
-            error "no package to remove"
-            crema_exit 0
+            error "No package to remove"
+            crema_exit 1
         fi
         read_repodir
         # download local repo incl. packages files
@@ -730,7 +731,7 @@ case $CMD in
         # removal only makes sense if there's already a database
         if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
         then
-            warning "there no repository database (yet): nothing to remove"
+            error "No repository database found"
             crema_exit 1
         fi    
         # remove packages from local repo db and remove package files
@@ -748,7 +749,7 @@ case $CMD in
 
     sign)
         # GPGKEY must be set
-        if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+        if [[ -z ${GPGKEY+x} || $GPGKEY = "" ]]
         then
             error "GPGKEY is not set"
             crema_exit 1
@@ -756,7 +757,7 @@ case $CMD in
         # repository must be specified
         if [[ -z ${REPO+x} || $REPO = "" ]]
         then
-            error "repository is needed"
+            error "Repository needed"
             crema_exit 1
         fi
         read_repodir
@@ -765,7 +766,7 @@ case $CMD in
         # check if repo is already signed
         if [[ -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
         then
-            msg "\'$REPO\' is already signed, nothing to do"
+            msg "\'$REPO\' is already signed: Nothing to do"
             crema_exit 0
         fi
         for file in "$TEMPREPODIR"/*
@@ -794,7 +795,7 @@ case $CMD in
         # repository must be specified
         if [[ -z ${REPO+x} || $REPO = "" ]]
         then
-            error "repository is needed"
+            error "Repository needed"
             crema_exit 1
         fi
         read_repodir
@@ -803,7 +804,7 @@ case $CMD in
         # check if repo is already signed
         if [[ ! -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
         then
-            msg "\'$REPO\' is not signed, nothing to do"
+            msg "\'$REPO\' is not signed: Nothing to do"
             crema_exit 0
         fi
         # remove signature files
@@ -821,7 +822,7 @@ case $CMD in
 
         while IFS='|' read -r REPO REPODIR
         do
-            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            if [[ ! -z ${repo+x} && $repo != $REPO ]]
             then
                 continue
             fi
@@ -836,7 +837,7 @@ case $CMD in
                 cd "$TEMPREPODIR"
                 aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
                     ${SIGNARGS_AUR[@]} || true
-                # remove opsolete package files
+                # remove obsolete package files
                 clean_up
                 cd -
                 # upload adjusted local repo incl. package files
@@ -850,7 +851,7 @@ case $CMD in
         ;;    
 
     *)
-        error -e "unknown command\n"
+        error -e "Unknown command\n"
         print_help
         crema_exit 1
         ;;
