@@ -135,9 +135,6 @@ Flags:
                        <user>@<server>:<path>.
 -s --sign              Sign the package and the repository database with gpg.
 
-Environment:
-GPGKEY                 Id of the key that is used by gpg for signing.
-
 EOF
             ;;
         cleanup)
@@ -154,10 +151,6 @@ Flags:
                  configuration file \$XDG_CONFIG_HOME/crema.conf in the form
                  <repository-name>|<path-to-repository>. SSH is supported,
                  i.e. the path can be of the form <user>@<server>:<path>.
--s --sign        Sign the package and the repository database with gpg.
-
-Environment:
-GPGKEY           Id of the key that is used by gpg for signing.
 
 EOF
             ;;
@@ -292,6 +285,9 @@ The commands are:
   unsign    Remove signatures from a custom repository
   update    Update all outdated AUR packages of one or all custom repositories  
   version   Display version of crema
+
+Environment:
+GPGKEY      Id of the key that is used by gpg for signing.
 
 Use "crema help <command>" for more information about any command.
 
