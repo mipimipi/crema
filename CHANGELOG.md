@@ -12,10 +12,14 @@
 ### Changed
 
 * Combined `add` and `build`commands:
-    * So far, both commands built packages and added them to a repository. The only differences were the sources: Whereas `add` took PKGBUILD's from AUR, `build` took them from the local filesystem.
-    * Now, there's only the `add` command which has an addtional flag `--from:<source>` where source can either be `aur` or `local`
-* Using `makechrootpkg` to build packages is now the default. If `makepkg` shall be used instead, flag `--nochroot` has to be set.
-* Comprehensive refactoring 
+    * So far, both commands built packages and added them to a repository. The only difference was the sources: Whereas `add` took PKGBUILD's from AUR, `build` took them from the local filesystem.
+    * Now, there's only the `add` command which has an addtional flag `--from:<source>` where `<source>` can either be `aur` or `local`
+* Per default, `makechrootpkg` is now used to build packages. If `makepkg` shall be used instead, the flag `--nochroot` has to be set.
+* Comprehensive refactoring
+
+### Removed
+
+* Flag `--chroot` since it is obsolete.
 
 ## [Release 1.3](https://github.com/mipimipi/crema/releases/tag/1.3) (2019-06-19)
 
