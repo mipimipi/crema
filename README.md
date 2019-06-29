@@ -1,6 +1,12 @@
 # crema
 
-[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage them. Such repositories can contain local packages (i.e. where the [PKGBUILD file](https://wiki.archlinux.org/index.php/PKGBUILD) is located in the local filesystem) or packages from the [AUR](https://aur.archlinux.org/), the Arch Linux user repository.
+[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories that can contain local packages (i.e. where the [PKGBUILD file](https://wiki.archlinux.org/index.php/PKGBUILD) is located in the local filesystem) or packages from the [AUR](https://aur.archlinux.org/), the Arch Linux user repository. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage them and is particularly suitable for remote custom repositories. 
+
+Some use cases for custom repositories:
+* During the installation of Arch Linux you want to pacstrap AUR packages. Therefore, these packages must be provided by a repository.
+* You want to use self-defined [meta packages](https://disconnected.systems/blog/archlinux-meta-packages/) to make Arch Linux installation more efficient
+* You are running Arch Linux on severals machines in your local network and want to provide all of them with packages / package updates from a custom repository in your local network
+* etc. etc. etc.
 
 ## Features
 
@@ -22,9 +28,9 @@ Another option is a manual installation. For this, clone this repository and cop
 
 crema requires information about the repositories (name and path). This needs to be stored in the configuration file `$XDG_CONFIG_HOME/crema.conf` in the form:
 
-    <repository-name>|<path-to-repository>
+    <repository-name>|<directory-of-the-repository>
 
-[SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form `<user>@<server>:<path>`. 
+Since `rsync` is used to copy files from and to the (remote) custom repositories, the path must be "`rsync`-compliant". [SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form `<user>@<host>:<path>`. 
 
 ## Usage
 
@@ -46,6 +52,7 @@ Basically, crema is a wrapper around `repo-add`, `repo-remove` (both part of the
 ## Known Issues
 
 * Adding packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file. Reason: In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an `rsync` error. In such situations `cream cleanup` helps to resolve potential inconsistencies.
+* If errors occur during package build, this can be caused by an inconsistent chroot environment. Deleting the directory `/var/lib/aurbuild` help.
 
 ## License
 
