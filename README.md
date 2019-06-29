@@ -52,7 +52,7 @@ Basically, crema is a wrapper around `repo-add`, `repo-remove` (both part of the
 ## Known Issues
 
 * Adding packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file. Reason: In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an `rsync` error. In such situations `cream cleanup` helps to resolve potential inconsistencies.
-* If errors occur during package build, this can be caused by an inconsistent chroot environment. Deleting the directory `/var/lib/aurbuild` help.
+* If errors occur during package build, this can be caused by an inconsistent chroot environment. Deleting the directory `/var/lib/aurbuild` could help.
 
 ## License
 
