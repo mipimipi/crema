@@ -1,6 +1,6 @@
 # crema
 
-[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories that can contain local packages (i.e. where the [PKGBUILD file](https://wiki.archlinux.org/index.php/PKGBUILD) is located in the local filesystem) or packages from the [AUR](https://aur.archlinux.org/), the Arch Linux user repository. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage them and is particularly suitable for remote custom repositories. 
+[Custom repositories](https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Custom_local_repository) are personal [Arch Linux](https://www.archlinux.org/) repositories that can contain local packages (i.e. where the [PKGBUILD file](https://wiki.archlinux.org/index.php/PKGBUILD) is located in the local filesystem) or packages from the [AUR](https://aur.archlinux.org/), the Arch Linux user repository. crema (**C**ustom **Re**pository  **Ma**nager) helps to manage them and is particularly suitable for **remote** custom repositories. 
 
 Some use cases for custom repositories:
 * During the installation of Arch Linux you want to pacstrap AUR packages. Therefore, these packages must be provided by a repository.
