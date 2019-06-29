@@ -32,8 +32,8 @@ cream has sub commands for the different tasks:
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema env` lists the repositories and their diretories
 * `crema ls` lists all packages of one or all repositories
-* `crema repo-add` Add a custom repository to the crema environment
-* `crema repo-rm` Remove a custom repository from the crema environment
+* `crema repo-add` Add a custom repository to the crema configuration
+* `crema repo-rm` Remove a custom repository from the crema configuration
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
 * `cream sign` sign a entire repository (incl. the database and the package files) with [gpg](https://gnupg.org/)
 * `crema unsign` remove signatures from a repository (incl. the database and the package files)
