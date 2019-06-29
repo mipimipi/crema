@@ -693,7 +693,7 @@ case $CMD in
 
             # upload adjusted local repo incl. package files
             upload_repo
-        done < $CFGFILE
+        done < "$CFGFILE"
         ;;
 
     env)
@@ -914,7 +914,7 @@ case $CMD in
             then
                 continue
             fi
-                        
+            
             # download local repo incl. packages files
             download_repo all
             set_signargs
@@ -925,13 +925,11 @@ case $CMD in
                 cd "$TEMPREPODIR"
                 aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
                     ${SIGNARGS_AUR[@]} || true
-                # remove obsolete package files
-                clean_up
                 cd -
                 # upload adjusted local repo incl. package files
                 upload_repo
             fi
-        done    
+        done < "$CFGFILE"
         ;;
 
     version)
