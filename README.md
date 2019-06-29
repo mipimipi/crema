@@ -30,7 +30,7 @@ crema requires information about the repositories (name and path). This needs to
 
 cream has sub commands for the different tasks:
 
-* `crema add` builds and adds packages incl. corresponding package tarballs to a custom repository
+* `crema build` builds and adds packages incl. corresponding package tarballs to a custom repository
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema env` lists the repositories and their diretories
 * `crema ls` lists all packages of one or all repositories

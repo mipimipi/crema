@@ -13,7 +13,7 @@
 
 * Combined `add` and `build`commands:
     * So far, both commands built packages and added them to a repository. The only difference was the sources: Whereas `add` took PKGBUILD's from AUR, `build` took them from the local filesystem.
-    * Now, there's only the `add` command which has an addtional flag `--from:<source>` where `<source>` can either be `aur` or `local`
+    * Now, there's only the `build` command which has an addtional flag `--from:<source>` where `<source>` can either be `aur` or `local`
 * Per default, `makechrootpkg` is now used to build packages. If `makepkg` shall be used instead, the flag `--nochroot` has to be set.
 * Comprehensive refactoring
 

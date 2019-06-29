@@ -109,17 +109,17 @@ print_help () {
     case $topic in
         add)
 cat <<EOF
-Usage: crema add (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
-                 ((-f:aur | --from:aur) <list of AUR package names> |
-                  (-f:local | --from:local) [<paths to PKGBUILD>])
+Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
+                   ((-f:aur | --from:aur) <list of AUR package names> |
+                   (-f:local | --from:local) [<paths to PKGBUILD>])
 
 Build and add packages to repository. The packages could either come from AUR
 the PKGBUILD files can be located in the local file system.
 
 Flags:
--f:aur   --from:aur    Add packages from AUR. This flag msut be followed by a a
+-f:aur   --from:aur    Build packages from AUR. This flag msut be followed by a
                        list of package names.
--f:local --from:local  Add packages whose PKGBUILD files are located in the
+-f:local --from:local  Build packages whose PKGBUILD files are located in the
                        local file system. This flag can be followed by a list
                        of directories of the PKGBUILD files. If this list is 
                        empty, crema assumes a PKGBUILD file in the current
@@ -134,6 +134,9 @@ Flags:
                        supported, i.e. the path can be of the form
                        <user>@<server>:<path>.
 -s --sign              Sign the package and the repository database with gpg.
+
+Environment:
+GPGKEY           Id of the key that is used by gpg for signing.
 
 EOF
             ;;
@@ -274,7 +277,7 @@ updated etc.
 Usage: crema <command> [<arguments>] 
 
 The commands are:
-  add       Build and add packages either from AUR or local file system to a
+  build     Build and add packages either from AUR or local file system to a
             custom repository
   cleanup   Clean up database of one or all custom repositories
   env       List the repositories and their directories
@@ -340,7 +343,7 @@ parse_args () {
     fi
 
     # check command
-    if [[ $1 != "add" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
+    if [[ $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
         && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" \
         && $1 != "sign" && $1 != "unsign" && $1 != "update" \
         && $1 != "version" ]]
@@ -498,7 +501,7 @@ parse_args $@
 
 # execute sub commands
 case $CMD in
-    add)
+    build)
         if [[ -z ${SOURCE+x} || $SOURCE = "" ]]
         then
             error "Command requires source"
