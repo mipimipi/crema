@@ -368,7 +368,7 @@ parse_args () {
         case $1 in
             --repo | -r)
                 # check if repository has been specified
-                if [[ -z ${2+x} ]] || [[ $2 = "" ]]
+                if [[ -z ${2+x} || $2 = "" ]]
                 then
                     error "Command needs a repository"
                     crema_exit 1
@@ -377,7 +377,7 @@ parse_args () {
                 shift 2
                 ;;
             --sign | -s)
-                if [[ -z ${GPGKEY+x} ]] || [[ $GPGKEY = "" ]]
+                if [[ -z ${GPGKEY+x} || $GPGKEY = "" ]]
                 then
                     error "GPGKEY must be set"
                     crema_exit 1
@@ -396,6 +396,10 @@ parse_args () {
                 ;;
             -f:* | --from:*)
                 error "\'${1#-*:}\' is not a valid source"
+                crema_exit 1
+                ;;
+            -*)    
+                error "\'$1\' is not a valid flag"
                 crema_exit 1
                 ;;
 
