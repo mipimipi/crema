@@ -328,15 +328,31 @@ crema_exit () {
 
 # download_repo --- download custom repository (incl. package files) to
 # temporary directory
-# usage: download_repo
+# usage: download_repo <scope> where scope can either be 'all' (which donwloads
+# all files) or 'db' (which downloads only the repo database) 
 download_repo () {
     # create temporary repository directory
     mkdir -p "$TEMPREPODIR"
-    # sync remote to custom repository
-    rsync -a "${REPODIR}/" "${TEMPREPODIR}"     
-    # verify gpg signature of repo
-    verify_signature "$TEMPREPODIR/$REPO.db.tar.xz"
-    verify_signature "$TEMPREPODIR/$REPO.files.tar.xz"
+
+    case $1 in
+        db)
+            # sync remote to custom repository
+            rsync -az --include "$REPO.db.tar.xz" --exclude "*" "${REPODIR}/" "${TEMPREPODIR}"     
+            # verify gpg signature of repo
+            verify_signature "$TEMPREPODIR/$REPO.db.tar.xz"
+            ;;
+        all)    
+            # sync remote to custom repository
+            rsync -az "${REPODIR}/" "${TEMPREPODIR}"     
+            # verify gpg signature of repo
+            verify_signature "$TEMPREPODIR/$REPO.db.tar.xz"
+            verify_signature "$TEMPREPODIR/$REPO.files.tar.xz"
+            ;;
+        *)    
+            error "Wrong scope for \'download_repo\'"
+            crema_exit 1
+            ;;
+    esac
 }     
 
 # parse_args --- parse command line arguments
@@ -452,14 +468,14 @@ read_repodir () {
     # check if the config file exists
     if [[ ! -e $CFGFILE ]]
     then
-        error "No path for '$REPO' found: Maintain \'$CFGFILE\'"
+        error "'$REPO' not found in config. Use \'crema repo-add\' to add the repository."
         crema_exit 1
     fi
     REPODIR=$(sed -n -e "/${REPO}|/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
     # check if path to repository could be determined
     if [[ -z ${REPODIR+x} || $REPODIR = "" ]]
     then
-        error "No path for '$REPO' found: Maintain \'$CFGFILE\'"
+        error "'$REPO' found in config. Use \'crema repo-add\' to add the repository."
         crema_exit 1
     fi
 }
@@ -497,7 +513,7 @@ verify_signature () {
 
     if [[ -e "$1.sig" ]]
     then
-        gpg --verify "$1.sig" "$1" >/dev/null
+        gpg --verify "$1.sig" "$1"
         if (( $? ))
         then
             error "\'$1\' has bad signature"
@@ -542,7 +558,7 @@ case $CMD in
         # get path to repository
         read_repodir
         # download local repo incl. packages files
-        download_repo
+        download_repo all
         set_signargs
         # if there's no database yet: create it
         if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
@@ -633,7 +649,7 @@ case $CMD in
                 continue
             fi
             # download local repo incl. packages files
-            download_repo
+            download_repo all
             set_signargs
 
             # check if all package in the repo db have corresponding package
@@ -734,7 +750,7 @@ case $CMD in
             fi
                         
             # download local repo incl. packages files
-            download_repo
+            download_repo db
             # list packages
             read_db
         done < $CFGFILE
@@ -798,7 +814,7 @@ case $CMD in
         check_repo
         read_repodir
         # download local repo incl. packages files
-        download_repo
+        download_repo all
         set_signargs
         # removal only makes sense if there's already a database
         if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
@@ -834,7 +850,7 @@ case $CMD in
         fi
         read_repodir
         # download local repo incl. packages files
-        download_repo
+        download_repo all
         # check if repo is already signed
         if [[ -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
         then
@@ -872,7 +888,7 @@ case $CMD in
         fi
         read_repodir
         # download local repo incl. packages files
-        download_repo
+        download_repo all
         # check if repo is already signed
         if [[ ! -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
         then
@@ -900,7 +916,7 @@ case $CMD in
             fi
                         
             # download local repo incl. packages files
-            download_repo
+            download_repo all
             set_signargs
             # update only makes sense if there's already a database
             if [[ -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
