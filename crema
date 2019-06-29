@@ -455,7 +455,7 @@ read_repodir () {
         error "No path for '$REPO' found: Maintain \'$CFGFILE\'"
         crema_exit 1
     fi
-    REPODIR=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
+    REPODIR=$(sed -n -e "/${REPO}|/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
     # check if path to repository could be determined
     if [[ -z ${REPODIR+x} || $REPODIR = "" ]]
     then
@@ -749,9 +749,10 @@ case $CMD in
             error "Path to repository required"
             crema_exit 1
         fi
+        # make sure that config file exists
+        [[ -e "$CFGFILE" ]] || touch "$CFGFILE"
         # check if REPO is already contained in config file
-        unset repodir
-        repodir=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
+        repodir=$(sed -n -e "/${REPO}|/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
         if [[ ! -z ${repodir+x} && $repodir != "" ]]
         then
             if [[ $repodir = $REPODIR ]]
@@ -764,13 +765,26 @@ case $CMD in
             fi
         fi
         echo "$REPO|$REPODIR" >> $CFGFILE
+        msg "\'$REPO\' added to configuration"
         ;;
 
     repo-rm)
         # repository must be given
         check_repo
+        # nothing to do if config doesn't exist
+        if [[ ! -e "$CFGFILE" ]]
+        then
+            warning "Config file doesn't exist: Nothing to do."
+            crema_exit 0
+        fi
+        # nothing to do if config file doesn't contain REPO
+        if [[ -z $( grep -F "${REPO}|" "$CFGFILE" 2> /dev/null ) ]]
+        then
+            warning "Config file doesn't contain \'$REPO\': Nothing to do"
+            crema_exit 0
+        fi
         # remove repo from config file
-        sed -i /${REPO}/d "$CFGFILE"
+        sed -i /${REPO}\|/d "$CFGFILE"
         ;;
 
     rm)   
