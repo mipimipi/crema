@@ -24,14 +24,6 @@ There is an [AUR package for crema](https://aur.archlinux.org/packages/crema-git
 
 Another option is a manual installation. For this, clone this repository and copy the crema script to a directory of your choice.
 
-## Configuration
-
-crema requires information about the repositories (name and path). This needs to be stored in the configuration file `$XDG_CONFIG_HOME/crema.conf` in the form:
-
-    <repository-name>|<directory-of-the-repository>
-
-Since `rsync` is used to copy files from and to the (remote) custom repositories, the path must be "`rsync`-compliant". [SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form `<user>@<host>:<path>`. 
-
 ## Usage
 
 cream has sub commands for the different tasks:
@@ -40,10 +32,22 @@ cream has sub commands for the different tasks:
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema env` lists the repositories and their diretories
 * `crema ls` lists all packages of one or all repositories
+* `crema repo-add` Add a custom repository to the crema environment
+* `crema repo-rm` Remove a custom repository from the crema environment
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
 * `cream sign` sign a entire repository (incl. the database and the package files) with [gpg](https://gnupg.org/)
 * `crema unsign` remove signatures from a repository (incl. the database and the package files)
 * `cream update` updates all outdated AUR packages in one or all custom repositories.
+
+## Configuration
+
+crema requires information about the repositories (name and directory). This needs to be stored in the configuration file `$XDG_CONFIG_HOME/crema.conf` in the form:
+
+    <repository-name>|<directory-of-the-repository>
+
+Since `rsync` is used to copy files from and to the (remote) custom repositories, the path must be "`rsync`-compliant". [SSH](https://en.wikipedia.org/wiki/Secure_Shell) is supported, i.e. the path can be of the form `<user>@<host>:<path>`. 
+
+The configuration file can be maintained either manually via text editor or with the commands `crema repo-add` and `crema repo-rm`.
 
 ## Details
 

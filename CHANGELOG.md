@@ -8,6 +8,7 @@
     * Check for package files that do not have a corresponding entry in the package database
     * Check for signature files that do not have a corresponding data file
 * Convenience logic for signing: If a repository is signed, and it shall be changed without but the `--sign` flag isn't set, the flag is set implicitly
+* New commands `repo-add` and `repo-rm` to maintain the crema configuration.
 
 ### Changed
 

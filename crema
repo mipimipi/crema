@@ -126,14 +126,8 @@ Flags:
                        directory.
 -n       --nochroot    Per default, makechrootpkg is used to build packages. If
                        this flag is set, makepkg is used instead.
--r       --repo <repo> Use custom repository <repo>. For data transfer, the
-                       path to the repository is needed. It needs to be
-                       maintained in the configuration file
-                       \$XDG_CONFIG_HOME/crema.conf in the form 
-                       <repository-name>|<path-to-repository>. SSH is
-                       supported, i.e. the path can be of the form
-                       <user>@<server>:<path>.
--s --sign              Sign the package and the repository database with gpg.
+-r       --repo <repo> Add package(s) to the custom repository <repo>.
+-s       --sign        Sign the package and the repository database with gpg.
 
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
@@ -149,11 +143,7 @@ for all custom repositories. Otherwise only the database of the given repository
 are cleaned up.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> Clean up the custom repository <repo>.
 
 EOF
             ;;
@@ -173,11 +163,32 @@ List all packages. If no repository is given, then that's done for all custom
 repositories. Otherwise only the packages of the given repository are listed.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> List packages of the custom repository <repo>. 
+
+EOF
+            ;;
+        repo-add)
+cat <<EOF
+Usage: crema repo-add (--repo | -r) <repository> (--path | p ) <path-to-repo>
+
+Add a custom repository to the crema configuration.
+
+Flags:
+-r --repo <repo> Add the custom repository <repo> ...
+-p --path <path> ... with the path <path>. The path must be compliant to rsync.
+                 SSH is supported, i.e. the path can be of the form
+                 <user>@<host>:<directory.
+
+EOF
+            ;;
+        repo-rm)
+cat <<EOF
+Usage: crema repo-rm <repository>
+
+Remove a custom repository from the crema configuration.
+
+Flags:
+-r --repo <repo> Remove the custom repository <repo>
 
 EOF
             ;;
@@ -188,11 +199,7 @@ Usage: crema rm (--repo | -r) <repository> <package> [<packages>]
 Remove packages and the corresponding package tarballs from a custom repository
 
 Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> Remove package(s) from the custom repository <repo>
 -s --sign        Sign the package and the repository database with gpg.
 
 Environment:
@@ -207,11 +214,7 @@ Usage: crema sign (--repo | -r) <repository>
 Sign a repository, incl. the repository database and all package files.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> Sign the custom repository <repo>
 
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
@@ -226,11 +229,7 @@ Remove signatures from a repository, i.e. all *.sig files are deleted, incl.
 the *.sig files of the repository database and all package files.
 
 Flags:
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> Unsign the custom repository <repo>.
 
 EOF
             ;;
@@ -245,11 +244,7 @@ are updated.
 Flags:
 -n --nochroot    Per default, makechrootpkg is used to build packages. If this
                  flag is set, makepkg is used instead.
--r --repo <repo> Use custom repository <repo>. For data transfer, the path to
-                 the repository is needed. It needs to be maintained in the
-                 configuration file \$XDG_CONFIG_HOME/crema.conf in the form
-                 <repository-name>|<path-to-repository>. SSH is supported,
-                 i.e. the path can be of the form <user>@<server>:<path>.
+-r --repo <repo> Update the packages of the custom repository <repo>.
 -s --sign        Sign the package and the repository database with gpg.
 
 Environment:
@@ -284,6 +279,8 @@ The commands are:
   help      Help about any command
   ls        List all packages of one or all custom repositories
   rm        Remove AUR packages from a custom repository
+  repo-add  Add a custom repository to the configuration of crema.
+  repo-rm   Remove a custom repository from the configuration of crema.
   sign      Sign a custom repository with gpg
   unsign    Remove signatures from a custom repository
   update    Update all outdated AUR packages of one or all custom repositories  
@@ -303,6 +300,16 @@ EOF
 ################################################################################
 # functions                                                                    #
 ################################################################################
+
+# check_repo --- checks if REPO is set
+# usage: check_repo
+check_repo () {
+    if [[ -z ${REPO+x} || $REPO = "" ]]
+    then
+        error "Repository required"
+        crema_exit 1
+    fi
+}    
 
 # cleanup_temp --- clean up temp data
 # usage: cleanup_temp
@@ -344,9 +351,9 @@ parse_args () {
 
     # check command
     if [[ $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
-        && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "rm" \
-        && $1 != "sign" && $1 != "unsign" && $1 != "update" \
-        && $1 != "version" ]]
+        && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "repo-add" \
+        && $1 != "repo-rm" && $1 != "rm" && $1 != "sign" && $1 != "unsign" \
+        && $1 != "update" && $1 != "version" ]]
     then
         error "crema $1: Unknown command. Run 'crema help' for usage."
         crema_exit 1
@@ -366,11 +373,33 @@ parse_args () {
     while (( "$#" ))
     do
         case $1 in
+            -f:aur | --from:aur | -f:local | --from:local)
+                SOURCE=${1#-*:}
+                shift
+                ;;
+            -f:* | --from:*)
+                error "\'${1#-*:}\' is not a valid source"
+                crema_exit 1
+                ;;
+            --nochroot | -n)
+                CHROOTARGS=()
+                shift
+                ;;
+            --path | -p)
+                # check if a path was given
+                if [[ -z ${2+x} || $2 = "" ]]
+                then
+                    error "Path to a repository required"
+                    crema_exit 1
+                fi
+                REPODIR=$2
+                shift 2
+                ;;
             --repo | -r)
                 # check if repository has been specified
                 if [[ -z ${2+x} || $2 = "" ]]
                 then
-                    error "Command needs a repository"
+                    error "Repository required"
                     crema_exit 1
                 fi
                 REPO=$2
@@ -385,18 +414,6 @@ parse_args () {
                 SIGNARGS_AUR+=("-s")
                 SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
                 shift
-                ;;
-            --nochroot | -n)
-                CHROOTARGS=()
-                shift
-                ;;
-            -f:aur | --from:aur | -f:local | --from:local)
-                SOURCE=${1#-*:}
-                shift
-                ;;
-            -f:* | --from:*)
-                error "\'${1#-*:}\' is not a valid source"
-                crema_exit 1
                 ;;
             -*)    
                 error "\'$1\' is not a valid flag"
@@ -506,6 +523,9 @@ parse_args $@
 # execute sub commands
 case $CMD in
     build)
+        # repository must be given
+        check_repo
+        # source must be given
         if [[ -z ${SOURCE+x} || $SOURCE = "" ]]
         then
             error "Command requires source"
@@ -608,7 +628,7 @@ case $CMD in
 
         while IFS='|' read -r REPO REPODIR
         do
-            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            if [[ ! -z ${repo+x} && $repo != $REPO ]]
             then
                 continue
             fi
@@ -708,7 +728,7 @@ case $CMD in
 
         while IFS='|' read -r REPO REPODIR
         do
-            if [[ ! -z ${repo+x} ]] && [[ $repo != $REPO ]]
+            if [[ ! -z ${repo+x} && $repo != $REPO ]]
             then
                 continue
             fi
@@ -720,6 +740,39 @@ case $CMD in
         done < $CFGFILE
         ;;
 
+    repo-add)
+        # repository must be given
+        check_repo
+        # path to repository must be given
+        if [[ -z ${REPODIR+x} || $REPODIR = "" ]]
+        then
+            error "Path to repository required"
+            crema_exit 1
+        fi
+        # check if REPO is already contained in config file
+        unset repodir
+        repodir=$(sed -n -e "/${REPO}/s/^${REPO}|\(.*\)/\1/p" < "$CFGFILE")
+        if [[ ! -z ${repodir+x} && $repodir != "" ]]
+        then
+            if [[ $repodir = $REPODIR ]]
+            then
+                warning "cream knows \'$REPO\' already: Nothing to do."
+                crema_exit 0
+            else
+                error "cream knows \'$REPO\' already, but with path \'$repodir\'"
+                crema_exit 1
+            fi
+        fi
+        echo "$REPO|$REPODIR" >> $CFGFILE
+        ;;
+
+    repo-rm)
+        # repository must be given
+        check_repo
+        # remove repo from config file
+        sed -i /${REPO}/d "$CFGFILE"
+        ;;
+
     rm)   
         # any package to remove?
         if [[ $# = 0 ]]
@@ -727,6 +780,8 @@ case $CMD in
             error "No package to remove"
             crema_exit 1
         fi
+        # repository must be given
+        check_repo
         read_repodir
         # download local repo incl. packages files
         download_repo
@@ -798,7 +853,7 @@ case $CMD in
         # repository must be specified
         if [[ -z ${REPO+x} || $REPO = "" ]]
         then
-            error "Repository needed"
+            error "Repository required"
             crema_exit 1
         fi
         read_repodir
