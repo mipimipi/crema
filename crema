@@ -108,33 +108,41 @@ print_help () {
     fi    
 
     case $topic in
-        add)
+        build)
 cat <<EOF
 Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
-                   ((-f:aur | --from:aur) <list of AUR package names> |
-                   (-f:local | --from:local) [<paths to PKGBUILD>])
-                   [-- <makepkg args>]
+                   <package sources> [-- <makepkg arguments>]
 
-Build and add packages to repository. The packages could either come from AUR
-the PKGBUILD files can be located in the local file system.
+Build and add packages to a repository. The packages (their PKGBUILD files)) can
+either come from AUR or from the local file system.
 
 Flags:
--f:aur   --from:aur    Build packages from AUR. This flag msut be followed by a
-                       list of package names.
+-n       --nochroot    Per default, makechrootpkg is used to build packages. If
+                       this flag is set, makepkg (outside of a chroot
+                       environment) is used instead.
+-r       --repo <repo> Add package(s) to the custom repository <repo>.
+-s       --sign        Sign the new packages and the repository database with
+                       gpg.
+
+Package sources:
+<package sources> define the source(s) of the PKGBUILD files that are needed to
+build the packages. Two different forms are supported (which cannot be combined 
+in the same crema build statement):
+-f:aur   --from:aur    Build packages from AUR. This flag must be followed by a
+                       list of AUR package names.
 -f:local --from:local  Build packages whose PKGBUILD files are located in the
                        local file system. This flag can be followed by a list
-                       of directories of the PKGBUILD files. If this list is 
-                       empty, crema assumes a PKGBUILD file in the current
-                       directory.
--n       --nochroot    Per default, makechrootpkg is used to build packages. If
-                       this flag is set, makepkg is used instead.
--r       --repo <repo> Add package(s) to the custom repository <repo>.
--s       --sign        Sign the package and the repository database with gpg.
--- <makepkg args>      Arguments for makepkg. See: https://wiki.archlinux.org/\
-                       index.php/DeveloperWiki:Building_in_a_clean_chroot
+                       of directories where the PKGBUILD files are stored. If no
+                       directory is given, crema assumes a PKGBUILD file in the
+                       current directory.
+
+makepkg arguments:
+At the end of the crema build statement, after '--', a list of arguments can be
+given that are routed through to makepkg. See:
+https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
                   
 Environment:
-GPGKEY           Id of the key that is used by gpg for signing.
+GPGKEY                 Id of the key that is used by gpg for signing.
 
 EOF
             ;;
@@ -204,7 +212,7 @@ Remove packages and the corresponding package tarballs from a custom repository
 
 Flags:
 -r --repo <repo> Remove package(s) from the custom repository <repo>
--s --sign        Sign the package and the repository database with gpg.
+-s --sign        Sign the repository database with gpg.
 
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
@@ -247,12 +255,17 @@ are updated.
 
 Flags:
 -n --nochroot     Per default, makechrootpkg is used to build packages. If this
-                  flag is set, makepkg is used instead.
+                  flag is set, makepkg (outside of a chroot environment) is used
+                  instead.
 -r --repo <repo>  Update the packages of the custom repository <repo>.
--s --sign         Sign the package and the repository database with gpg.
--- <makepkg args> Arguments for makepkg. See: https://wiki.archlinux.org/\
-                  index.php/DeveloperWiki:Building_in_a_clean_chroot
+-s --sign         Sign the package files of the updated packages and the
+                  repository database with gpg.
 
+makepkg arguments:
+At the end of the crema build statement, after '--', a list of arguments can be
+given that are routed through to makepkg. See:
+https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
+                  
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
 
@@ -866,12 +879,6 @@ case $CMD in
         read_repodir
         # download local repo incl. packages files
         download_repo all
-        # check if repo is already signed
-        if [[ -e "$TEMPREPODIR/$REPO.db.tar.xz.sig" ]]
-        then
-            msg "\'$REPO\' is already signed: Nothing to do"
-            crema_exit 0
-        fi
         for file in "$TEMPREPODIR"/*
         do
             # symbolic links are handled separately
@@ -884,6 +891,7 @@ case $CMD in
             [[ -e "$file.sig" ]] && continue
             # create signature file
             gpg -u $GPGKEY --output "$file.sig" --detach-sign "$file"
+            msg "Signed: ${file##/*/}"
         done
         # handle symbolic links
         cd "$TEMPREPODIR"
