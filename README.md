@@ -35,9 +35,9 @@ cream has sub commands for the different tasks:
 * `crema repo-add` Add a custom repository to the crema configuration
 * `crema repo-rm` Remove a custom repository from the crema configuration
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
-* `cream sign` sign a entire repository (incl. the database and the package files) with [gpg](https://gnupg.org/)
+* `crema sign` sign a entire repository (incl. the database and the package files) with [gpg](https://gnupg.org/)
 * `crema unsign` remove signatures from a repository (incl. the database and the package files)
-* `cream update` updates all outdated AUR packages in one or all custom repositories.
+* `crema update` updates all outdated AUR packages in one or all custom repositories.
 
 ## Configuration
 
