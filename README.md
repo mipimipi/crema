@@ -55,19 +55,19 @@ Basically, crema is a wrapper around `repo-add`, `repo-remove` (both part of the
 
 ## Known Issues
 
-* Adding packages to a custom repository does not always work if in the `epoch` is set in the PKGBUILD file.
+1. Adding packages to a custom repository leads to an `rsync` error.
 
-    **Reason:** In this case, the file name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, adding such a package will result in an `rsync` error.
+    **Reason:** This error can happen, if in the PKGBUILD file of the package the `epoch`is set. In this case, the name of the package contains a colon. If the system that hosts the repository does not allow colons in file names, `rsync` throws an error.
 
     **Solution:** Unfortunately, there's no other solution than either changing the remote system / hoster or to not add that package to the repository. Since inconsistencies can occur (aftre such an error occurred, the repository database can, for example, contain a package but the package tarball is not stored), `cream cleanup` helps to make the repository consistent again.
 
-* During the build process, the error `error: <package-nam>: signature from "<name, mail address>" is invalid` occurs.
+1. During the build process, the error `error: <package-nam>: signature from "<name, mail address>" is invalid` occurs.
 
     **Reason:** In the chroot environment of `makechrootpkg` that key is not known.
 
     **Solution:** Make the key known by executing `sudo arch-chroot /var/lib/aurbuild/x86_64/root pacman-key -r <key-id>`, provided `/var/lib/aurbuild/x85_64/root` is the root directory of the chroot environment (which is the default).
 
-* Other errors occur during package build
+1. Other errors occur during package build
     
     **Reason:** This can be caused by an inconsistent chroot environment.
     
