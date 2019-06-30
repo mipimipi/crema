@@ -34,6 +34,7 @@ declare CMD=              # sub command
 declare SIGNARGS_AUR=     # sign arguments for aurutils
 declare SIGNARGS_REPO=    # sign arguments for repo-* tools
 declare CHROOTARGS=("-c") # chroot arguments (chroot is the default)
+declare -a MAKEPKGARGS=() # makepkg arguments 
 declare -a REMARGS=()     # remaining arguments
 declare REPO=             # repository
 declare REPODIR=          # remote repository directory
@@ -112,6 +113,7 @@ cat <<EOF
 Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
                    ((-f:aur | --from:aur) <list of AUR package names> |
                    (-f:local | --from:local) [<paths to PKGBUILD>])
+                   [-- <makepkg args>]
 
 Build and add packages to repository. The packages could either come from AUR
 the PKGBUILD files can be located in the local file system.
@@ -128,7 +130,9 @@ Flags:
                        this flag is set, makepkg is used instead.
 -r       --repo <repo> Add package(s) to the custom repository <repo>.
 -s       --sign        Sign the package and the repository database with gpg.
-
+-- <makepkg args>      Arguments for makepkg. See: https://wiki.archlinux.org/\
+                       index.php/DeveloperWiki:Building_in_a_clean_chroot
+                  
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
 
@@ -235,17 +239,19 @@ EOF
             ;;
         update)
 cat <<EOF
-Usage: crema update [(--repo | -r) <repository>]
+Usage: crema update [(--repo | -r) <repository>] [-- <makepkg args>]
 
 Update all outdated AUR packages. If no repository is given, then that's done
 for all custom repositories. Otherwise only the packages of the given repository
 are updated.
 
 Flags:
--n --nochroot    Per default, makechrootpkg is used to build packages. If this
-                 flag is set, makepkg is used instead.
--r --repo <repo> Update the packages of the custom repository <repo>.
--s --sign        Sign the package and the repository database with gpg.
+-n --nochroot     Per default, makechrootpkg is used to build packages. If this
+                  flag is set, makepkg is used instead.
+-r --repo <repo>  Update the packages of the custom repository <repo>.
+-s --sign         Sign the package and the repository database with gpg.
+-- <makepkg args> Arguments for makepkg. See: https://wiki.archlinux.org/\
+                  index.php/DeveloperWiki:Building_in_a_clean_chroot
 
 Environment:
 GPGKEY           Id of the key that is used by gpg for signing.
@@ -442,7 +448,16 @@ parse_args () {
         esac
     done
 
-    REMARGS=($@)
+    # collect remaining args (list of package namen, directories etc.) up to
+    # flag '--' into REMARGS
+    while [[ ! -z ${1+x} && "$1" != "--" ]]
+    do
+        REMARGS+=( $1 )
+        shift
+    done
+
+    # collect all remaining arguments beginning at '--' into MAKEPKGARGS
+    MAKEPKGARGS=($@)
 }
 
 # read_db --- reads database of repo $REPO
@@ -628,7 +643,7 @@ case $CMD in
         if [[ -s "$TEMPFILE" ]]
         then
             aur build -d "$REPO" -a "$TEMPFILE" --root="$TEMPREPODIR" -N \
-                ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} || true
+                ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} ${MAKEPKGARGS[@]} || true
         fi
         [[ $SOURCE != "aur" ]] || cd -
         # upload adjusted local repo incl. package files
@@ -924,7 +939,8 @@ case $CMD in
                 # update outdated packages
                 cd "$TEMPREPODIR"
                 aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
-                    ${SIGNARGS_AUR[@]} || true
+                    ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} ${MAKEPKGARGS[@]} \
+                    || true
                 cd -
                 # upload adjusted local repo incl. package files
                 upload_repo
