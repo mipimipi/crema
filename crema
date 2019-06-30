@@ -267,7 +267,7 @@ given that are routed through to makepkg. See:
 https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
                   
 Environment:
-GPGKEY           Id of the key that is used by gpg for signing.
+GPGKEY            Id of the key that is used by gpg for signing.
 
 EOF
             ;;
