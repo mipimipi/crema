@@ -111,7 +111,8 @@ print_help () {
         build)
 cat <<EOF
 Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
-                   <package sources> [-- <makepkg arguments>]
+                   [<mkarchroot arguments>] <package sources> [-- <makepkg
+                   arguments>]
 
 Build and add packages to a repository. The packages (their PKGBUILD files)) can
 either come from AUR or from the local file system.
@@ -135,6 +136,16 @@ in the same crema build statement):
                        of directories where the PKGBUILD files are stored. If no
                        directory is given, crema assumes a PKGBUILD file in the
                        current directory.
+
+mkarchroot arguments:
+-C <pacman.conf>       The pacman.conf file that is used inside the chroot
+                       environment.
+-D <directory>         The base directory for chroot environments.
+-M <makepkg.conf>      The makepkg.cong file that is used inside the chroot
+                       environment.
+See the man pages of 'aur chroot' (man aur chroot) and/or
+https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
+for more detailed information.                       
 
 makepkg arguments:
 At the end of the crema build statement, after '--', a list of arguments can be
@@ -247,7 +258,8 @@ EOF
             ;;
         update)
 cat <<EOF
-Usage: crema update [(--repo | -r) <repository>] [-- <makepkg args>]
+Usage: crema update [(--repo | -r) <repository>] [mkarchroot arguments] 
+                    [-- <makepkg args>]
 
 Update all outdated AUR packages. If no repository is given, then that's done
 for all custom repositories. Otherwise only the packages of the given repository
@@ -260,6 +272,16 @@ Flags:
 -r --repo <repo>  Update the packages of the custom repository <repo>.
 -s --sign         Sign the package files of the updated packages and the
                   repository database with gpg.
+
+mkarchroot arguments:
+-C <pacman.conf>       The pacman.conf file that is used inside the chroot
+                       environment.
+-D <directory>         The base directory for chroot environments.
+-M <makepkg.conf>      The makepkg.cong file that is used inside the chroot
+                       environment.
+See the man pages of 'aur chroot' (man aur chroot) and/or
+https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
+for more detailed information.                       
 
 makepkg arguments:
 At the end of the crema build statement, after '--', a list of arguments can be
@@ -449,6 +471,16 @@ parse_args () {
                 SIGNARGS_AUR+=("-s")
                 SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
                 shift
+                ;;
+            -C | -D | -M)
+                # check if the flag has an argument
+                if [[ -z ${2+x} || $2 = "" ]]
+                then
+                    error "Flag $1 required an argument. Get more information in the man page of \'aur chroot\' (man aur chroot)."
+                    crema_exit 1
+                fi
+                CHROOTARGS+=( "$1" "$2")
+                shift 2
                 ;;
             -*)    
                 error "\'$1\' is not a valid flag"
