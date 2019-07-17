@@ -30,7 +30,7 @@ declare -r TEMPREPODIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
 declare -r PKGDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/pkg
 declare -r TEMPFILE=${XDG_DATA_HOME:-"$HOME"/.local}/crema/temp.file
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
-declare -r CHROOTDIR=/var/lib/aurbuild
+declare -r CHROOTDIR=/var/lib/aurbuild/$(uname -m)
 declare CMD=               # sub command
 declare SIGNARGS_AUR=      # sign arguments for aurutils
 declare SIGNARGS_REPO=     # sign arguments for repo-* tools
@@ -152,6 +152,14 @@ are cleaned up.
 
 Flags:
 -r --repo <repo> Clean up the custom repository <repo>.
+
+EOF
+            ;;
+        chroot-add-key)
+cat <<EOF
+Usage: crema chroot-add-key <key ID>
+
+Add a key <key ID> to the chroot environment.
 
 EOF
             ;;
@@ -301,22 +309,23 @@ updated etc.
 Usage: crema <command> [<arguments>] 
 
 The commands are:
-  add          Build and add packages either from AUR or local file system to a
-               custom repository
-  cleanup      Clean up database of one or all custom repositories
-  chroot-rm    Remove the chroot environment
-  env          List the repositories and their directories
-  help         Help about any command
-  ls           List all packages of one or all custom repositories
-  purge        Delete all packages from a custom repository
-  rm           Remove AUR packages from a custom repository
-  repo-add     Add a custom repository to the configuration of crema.
-  repo-rm      Remove a custom repository from the configuration of crema.
-  sign         Sign a custom repository with gpg
-  unsign       Remove signatures from a custom repository
-  update       Update all outdated AUR packages of one or all custom
-               repositories  
-  version      Display version of crema
+  add             Build and add packages either from AUR or local file system to
+                  a custom repository
+  cleanup         Clean up database of one or all custom repositories
+  chroot-add-key  Add gpg key to the chroot environment
+  chroot-rm       Remove the chroot environment
+  env             List the repositories and their directories
+  help            Help about any command
+  ls              List all packages of one or all custom repositories
+  purge           Delete all packages from a custom repository
+  rm              Remove AUR packages from a custom repository
+  repo-add        Add a custom repository to the configuration of crema.
+  repo-rm         Remove a custom repository from the configuration of crema
+  sign            Sign a custom repository with gpg
+  unsign          Remove signatures from a custom repository
+  update          Update all outdated AUR packages of one or all custom
+                  repositories  
+  version         Display version of crema
 
 Environment:
 GPGKEY         Id of the key that is used by gpg for signing.
@@ -400,11 +409,11 @@ parse_args () {
     fi
 
     # check command
-    if [[ $1 != "add" && $1 != "cleanup" && $1 != "chroot-rm" && $1 != "env" \
-        && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" \
-        && $1 != "purge" && $1 != "repo-add" && $1 != "repo-rm" && $1 != "rm" \
-        && $1 != "sign"         && $1 != "unsign" && $1 != "update" \
-        && $1 != "version" ]]
+    if [[ $1 != "add" && $1 != "cleanup" && $1 != "chroot-add-key" \
+        && $1 != "chroot-rm" && $1 != "env" && $1 != "help" && $1 != "--help" \
+        && $1 != "-h" && $1 != "ls" && $1 != "purge" && $1 != "repo-add" \
+        && $1 != "repo-rm" && $1 != "rm" && $1 != "sign" && $1 != "unsign" \
+        && $1 != "update" && $1 != "version" ]]
     then
         error "crema $1: Unknown command. Run 'crema help' for usage."
         crema_exit 1
@@ -737,6 +746,21 @@ case $CMD in
             # upload adjusted local repo incl. package files
             upload_repo
         done < "$CFGFILE"
+        ;;
+
+    chroot-add-key)
+        if [[ -z ${2+x} ]]
+        then
+            error "key is required"
+            crema_exit 1
+        fi    
+        sudo arch-chroot "$CHROOTDIR"/root pacman-key -r $2
+        if [[ $? == 0 ]]
+        then
+            msg "key $2 added to chroot environment"
+        else
+            error "key $2 could not be added to chroot environment"
+        fi    
         ;;
 
     chroot-rm)
