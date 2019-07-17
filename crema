@@ -25,21 +25,22 @@ set -uo pipefail
 set -o nounset
 #trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; crema_exit $s' ERR
 
-declare -r VERSION=1.4
+declare -r VERSION=1.5
 declare -r TEMPREPODIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/local-repo
 declare -r PKGDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/pkg
 declare -r TEMPFILE=${XDG_DATA_HOME:-"$HOME"/.local}/crema/temp.file
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
-declare CMD=              # sub command
-declare SIGNARGS_AUR=     # sign arguments for aurutils
-declare SIGNARGS_REPO=    # sign arguments for repo-* tools
-declare CHROOTARGS=("-c") # chroot arguments (chroot is the default)
-declare -a MAKEPKGARGS=() # makepkg arguments 
-declare -a REMARGS=()     # remaining arguments
-declare REPO=             # repository
-declare REPODIR=          # remote repository directory
-declare SOURCE=           # source for add sub command. Can be either "aur" or
-                          # "local" 
+declare -r CHROOTDIR=/var/lib/aurbuild
+declare CMD=               # sub command
+declare SIGNARGS_AUR=      # sign arguments for aurutils
+declare SIGNARGS_REPO=     # sign arguments for repo-* tools
+declare MAKEARGS=("-c" "--" "--" "-c")
+                           # chroot arguments (chroot is the default)
+declare -a REMARGS=()      # remaining arguments
+declare REPO=              # repository
+declare REPODIR=           # remote repository directory
+declare SOURCE=            # source for add sub command. Can be either "aur"
+                           # or "local" 
 
 
 ################################################################################
@@ -108,11 +109,10 @@ print_help () {
     fi    
 
     case $topic in
-        build)
+        add)
 cat <<EOF
-Usage: crema build (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
-                   [<mkarchroot arguments>] <package sources> [-- <makepkg
-                   arguments>]
+Usage: crema add (--repo | -r) <repository> [(--sign | -s)] [(--nochroot | -n)] 
+                   <package sources>
 
 Build and add packages to a repository. The packages (their PKGBUILD files)) can
 either come from AUR or from the local file system.
@@ -137,21 +137,6 @@ in the same crema build statement):
                        directory is given, crema assumes a PKGBUILD file in the
                        current directory.
 
-mkarchroot arguments:
--C <pacman.conf>       The pacman.conf file that is used inside the chroot
-                       environment.
--D <directory>         The base directory for chroot environments.
--M <makepkg.conf>      The makepkg.cong file that is used inside the chroot
-                       environment.
-See the man pages of 'aur chroot' (man aur chroot) and/or
-https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
-for more detailed information.                       
-
-makepkg arguments:
-At the end of the crema build statement, after '--', a list of arguments can be
-given that are routed through to makepkg. See:
-https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
-                  
 Environment:
 GPGKEY                 Id of the key that is used by gpg for signing.
 
@@ -170,6 +155,14 @@ Flags:
 
 EOF
             ;;
+        chroot-rm)
+cat <<EOF
+Usage: crema chroot-rm
+
+Remove/reset the chroot environment.
+
+EOF
+            ;;
         env)
 cat <<EOF
 Usage: crema env
@@ -180,13 +173,24 @@ EOF
             ;;
         ls)
 cat <<EOF
-Usage: crema ls [<repository>]
+Usage: crema ls [(--repo | -r) <repository>]
 
 List all packages. If no repository is given, then that's done for all custom
 repositories. Otherwise only the packages of the given repository are listed.
 
 Flags:
 -r --repo <repo> List packages of the custom repository <repo>. 
+
+EOF
+            ;;
+        purge)
+cat <<EOF
+Usage: crema purge (--repo | -r) <repository>
+
+Delete all package and the package database from a custom repository
+
+Flags:
+-r --repo <repo> Delete all packages from the custom repository <repo>. 
 
 EOF
             ;;
@@ -258,8 +262,7 @@ EOF
             ;;
         update)
 cat <<EOF
-Usage: crema update [(--repo | -r) <repository>] [mkarchroot arguments] 
-                    [-- <makepkg args>]
+Usage: crema update [(--repo | -r) <repository>]
 
 Update all outdated AUR packages. If no repository is given, then that's done
 for all custom repositories. Otherwise only the packages of the given repository
@@ -273,21 +276,6 @@ Flags:
 -s --sign         Sign the package files of the updated packages and the
                   repository database with gpg.
 
-mkarchroot arguments:
--C <pacman.conf>       The pacman.conf file that is used inside the chroot
-                       environment.
--D <directory>         The base directory for chroot environments.
--M <makepkg.conf>      The makepkg.cong file that is used inside the chroot
-                       environment.
-See the man pages of 'aur chroot' (man aur chroot) and/or
-https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
-for more detailed information.                       
-
-makepkg arguments:
-At the end of the crema build statement, after '--', a list of arguments can be
-given that are routed through to makepkg. See:
-https://wiki.archlinux.org/index.php/DeveloperWiki:Building_in_a_clean_chroot
-                  
 Environment:
 GPGKEY            Id of the key that is used by gpg for signing.
 
@@ -313,22 +301,25 @@ updated etc.
 Usage: crema <command> [<arguments>] 
 
 The commands are:
-  build     Build and add packages either from AUR or local file system to a
-            custom repository
-  cleanup   Clean up database of one or all custom repositories
-  env       List the repositories and their directories
-  help      Help about any command
-  ls        List all packages of one or all custom repositories
-  rm        Remove AUR packages from a custom repository
-  repo-add  Add a custom repository to the configuration of crema.
-  repo-rm   Remove a custom repository from the configuration of crema.
-  sign      Sign a custom repository with gpg
-  unsign    Remove signatures from a custom repository
-  update    Update all outdated AUR packages of one or all custom repositories  
-  version   Display version of crema
+  add          Build and add packages either from AUR or local file system to a
+               custom repository
+  cleanup      Clean up database of one or all custom repositories
+  chroot-rm    Remove the chroot environment
+  env          List the repositories and their directories
+  help         Help about any command
+  ls           List all packages of one or all custom repositories
+  purge        Delete all packages from a custom repository
+  rm           Remove AUR packages from a custom repository
+  repo-add     Add a custom repository to the configuration of crema.
+  repo-rm      Remove a custom repository from the configuration of crema.
+  sign         Sign a custom repository with gpg
+  unsign       Remove signatures from a custom repository
+  update       Update all outdated AUR packages of one or all custom
+               repositories  
+  version      Display version of crema
 
 Environment:
-GPGKEY      Id of the key that is used by gpg for signing.
+GPGKEY         Id of the key that is used by gpg for signing.
 
 Use "crema help <command>" for more information about any command.
 
@@ -377,12 +368,14 @@ download_repo () {
 
     case $1 in
         db)
+            msg "downloading from \'$REPODIR\' ..."
             # sync remote to custom repository
             rsync -az --include "$REPO.db.tar.xz" --exclude "*" "${REPODIR}/" "${TEMPREPODIR}"     
             # verify gpg signature of repo
             verify_signature "$TEMPREPODIR/$REPO.db.tar.xz"
             ;;
         all)    
+            msg "downloading from \'$REPODIR\' ..."
             # sync remote to custom repository
             rsync -az "${REPODIR}/" "${TEMPREPODIR}"     
             # verify gpg signature of repo
@@ -407,10 +400,11 @@ parse_args () {
     fi
 
     # check command
-    if [[ $1 != "build" && $1 != "cleanup" && $1 != "env" && $1 != "help" \
-        && $1 != "--help" && $1 != "-h" && $1 != "ls" && $1 != "repo-add" \
-        && $1 != "repo-rm" && $1 != "rm" && $1 != "sign" && $1 != "unsign" \
-        && $1 != "update" && $1 != "version" ]]
+    if [[ $1 != "add" && $1 != "cleanup" && $1 != "chroot-rm" && $1 != "env" \
+        && $1 != "help" && $1 != "--help" && $1 != "-h" && $1 != "ls" \
+        && $1 != "purge" && $1 != "repo-add" && $1 != "repo-rm" && $1 != "rm" \
+        && $1 != "sign"         && $1 != "unsign" && $1 != "update" \
+        && $1 != "version" ]]
     then
         error "crema $1: Unknown command. Run 'crema help' for usage."
         crema_exit 1
@@ -439,7 +433,7 @@ parse_args () {
                 crema_exit 1
                 ;;
             --nochroot | -n)
-                CHROOTARGS=()
+                MAKEARGS=("--" "-c")
                 shift
                 ;;
             --path | -p)
@@ -472,16 +466,6 @@ parse_args () {
                 SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
                 shift
                 ;;
-            -C | -D | -M)
-                # check if the flag has an argument
-                if [[ -z ${2+x} || $2 = "" ]]
-                then
-                    error "Flag $1 required an argument. Get more information in the man page of \'aur chroot\' (man aur chroot)."
-                    crema_exit 1
-                fi
-                CHROOTARGS+=( "$1" "$2")
-                shift 2
-                ;;
             -*)    
                 error "\'$1\' is not a valid flag"
                 crema_exit 1
@@ -493,16 +477,8 @@ parse_args () {
         esac
     done
 
-    # collect remaining args (list of package namen, directories etc.) up to
-    # flag '--' into REMARGS
-    while [[ ! -z ${1+x} && "$1" != "--" ]]
-    do
-        REMARGS+=( $1 )
-        shift
-    done
-
-    # collect all remaining arguments beginning at '--' into MAKEPKGARGS
-    MAKEPKGARGS=($@)
+    # collect all remaining arguments
+    REMARGS=($@)
 }
 
 # read_db --- reads database of repo $REPO
@@ -510,6 +486,12 @@ parse_args () {
 read_db () {
     local -a pkgs
     local pkg
+
+    # nothing to do if no package db exists
+    if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
+    then
+        return
+    fi    
 
     mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
 
@@ -540,14 +522,6 @@ read_repodir () {
     fi
 }
 
-# upload_repo --- upload to custom repository (incl. package files) and delete
-# temporary directory
-# usage: upload_repo
-upload_repo () {
-    # sync local to remote repository
-    rsync -a --delete --no-perms "${TEMPREPODIR}/" "${REPODIR}"
-}    
-
 # set_signargs --- sets SIGNARGS_* signargs even if --sign wasn't set on
 # command line, but if the repository database was signed, SIGNARGS_* must be
 # set
@@ -564,6 +538,15 @@ set_signargs () {
         SIGNARGS_REPO+=("-s" "-k" "$GPGKEY")
     fi
 }
+
+# upload_repo --- upload to custom repository (incl. package files) and delete
+# temporary directory
+# usage: upload_repo
+upload_repo () {
+    msg "uploading to \'$REPODIR\' ..."
+    # sync local to remote repository
+    rsync -a --delete --no-perms "${TEMPREPODIR}/" "${REPODIR}"
+}    
 
 # verify_signature --- verifies gpg signature of a file
 # usage: verify_signature <file>
@@ -598,7 +581,7 @@ parse_args $@
 
 # execute sub commands
 case $CMD in
-    build)
+    add)
         # repository must be given
         check_repo
         # source must be given
@@ -623,6 +606,7 @@ case $CMD in
         # if there's no database yet: create it
         if [[ ! -e "${TEMPREPODIR}/${REPO}.db.tar.xz" ]]
         then
+            echo "empty"
             repo-add -n -R "${TEMPREPODIR}/${REPO}.db.tar.xz"
             upload_repo
         fi
@@ -688,7 +672,7 @@ case $CMD in
         if [[ -s "$TEMPFILE" ]]
         then
             aur build -d "$REPO" -a "$TEMPFILE" --root="$TEMPREPODIR" -N \
-                ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} ${MAKEPKGARGS[@]} || true
+                ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
         fi
         [[ $SOURCE != "aur" ]] || cd -
         # upload adjusted local repo incl. package files
@@ -735,25 +719,29 @@ case $CMD in
                 # check if repo contains that package, if not: remove files
                 if [[ ! " ${pkgs[@]} " =~ " $pkg/" ]]
                 then
-                    rm -f "$pkg".pkg.tar.xz "$pkg".pkg.tar.xz.sig
+                    rm -f "$file" "$file".sig
                     plain "\'$pkg\' not contained in repository database: Package file(s) removed"
                 fi
             done
 
             # check if every sig file has a corresponding data file
-            for sig in "$TEMPREPODIR"/*.sig
+            for file in "$TEMPREPODIR"/*.sig
             do
-                file=${sig%.sig}
-                if [[ ! -e "$file" ]]
+                if [[ ! -e "$file%.sig" ]]
                 then
-                    rm -f "$sig"
-                    plain "\'$sig\' doesn't have a corresponding data file: File removed"
+                    rm -f "$file"
+                    plain "\'${file##/*/}\' doesn't have a corresponding data file: File removed"
                 fi
             done
 
             # upload adjusted local repo incl. package files
             upload_repo
         done < "$CFGFILE"
+        ;;
+
+    chroot-rm)
+        sudo rm -rfd "$CHROOTDIR"
+        msg "Chroot environment \'$CHROOTDIR\' removed"
         ;;
 
     env)
@@ -814,6 +802,21 @@ case $CMD in
             # list packages
             read_db
         done < $CFGFILE
+        ;;
+    purge)    
+        # repository must be given
+        check_repo
+        read -p "Do you really want to delete all packages from repository '$REPO' (y/N)? " c
+        if [[ $c == "y" ]]
+        then
+            # get path to repository
+            read_repodir
+            # download local repo incl. packages files
+            download_repo all
+            rm -rdf "$TEMPREPODIR"/*
+            # upload adjusted local repo incl. package files
+            upload_repo
+        fi    
         ;;
 
     repo-add)
@@ -979,8 +982,7 @@ case $CMD in
                 # update outdated packages
                 cd "$TEMPREPODIR"
                 aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
-                    ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} ${MAKEPKGARGS[@]} \
-                    || true
+                    ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
                 cd -
                 # upload adjusted local repo incl. package files
                 upload_repo
