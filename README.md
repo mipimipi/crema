@@ -30,8 +30,11 @@ cream has sub commands for the different tasks:
 
 * `crema build` builds and adds packages incl. corresponding package tarballs to a custom repository
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
+* `crema chroot-add-key` adds gpg key to the chroot environment
+* `crema chroot-rm` removes/resets the chroot environment
 * `crema env` lists the repositories and their diretories
 * `crema ls` lists all packages of one or all repositories
+* `crema purge` deletes all packages from a custom repository
 * `crema repo-add` Add a custom repository to the crema configuration
 * `crema repo-rm` Remove a custom repository from the crema configuration
 * `crema rm` removes AUR packages and the corresponding package tarballs from a custom repository.
@@ -65,13 +68,13 @@ Basically, crema is a wrapper around `repo-add`, `repo-remove` (both part of the
 
 **Reason:** In the chroot environment of `makechrootpkg` that key is not known.
 
-**Solution:** Make the key known by executing `sudo arch-chroot /var/lib/aurbuild/x86_64/root pacman-key -r <key-id>`, provided `/var/lib/aurbuild/x86_64/root` is the root directory of the chroot environment (which is the default).
+**Solution:** Make the key known by executing `crema chroot-add-key <key ID>`.
 
 #### Other errors occur during package build
     
 **Reason:** This can be caused by an inconsistent chroot environment.
     
-**Solution:** Deleting the directory `/var/lib/aurbuild` can help.
+**Solution:** Reseeting the chroot environment via `crema chroot-rm` can help.
 
 ## License
 
