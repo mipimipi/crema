@@ -1,4 +1,15 @@
 
+## [Release 1.5](https://github.com/mipimipi/crema/releases/tag/1.5) (2019-07-17)
+
+### Added
+
+* New commands `chroot-add-key`, `chroot-rm` and `purge`.
+* Automated cleanup when packages are added or updated
+
+### Changed
+
+* Renamed command `build` to `add`.
+
 ## [Release 1.4](https://github.com/mipimipi/crema/releases/tag/1.4) (2019-06-29)
 
 ### Added

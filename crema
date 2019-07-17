@@ -352,6 +352,48 @@ check_repo () {
     fi
 }    
 
+# cleanup_repo --- clean up repository in local directory
+# usage: cleanup_repo
+cleanup_repo () {
+    # check if all package in the repo db have corresponding package
+    # files
+    read_db | cut -d " " -f 2 | while read -r pkg
+    do
+        if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 -name "${pkg}*.pkg.tar.xz") ]]
+        then
+            repo-remove ${SIGNARGS_REPO[@]} "${TEMPREPODIR}/${REPO}.db.tar.xz" \
+                "$pkg"
+            plain "Package file for \'$pkg\' doesnt' exist: Package removed from repository"
+        fi
+    done
+
+    # check if all package file are represented in the repo db
+    mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
+    for file in "$TEMPREPODIR"/*.pkg.tar.xz
+    do
+        # extract package name from $file
+        pkg=${file##/*/}
+        pkg=${pkg%-*.pkg.tar.xz}
+        # check if repo contains that package, if not: remove files
+        if [[ ! " ${pkgs[@]} " =~ " $pkg/" ]]
+        then
+            rm -f "$file" "$file".sig
+            plain "\'$pkg\' not contained in repository database: Package file(s) removed"
+        fi
+    done
+
+    # check if every sig file has a corresponding data file
+    for file in "$TEMPREPODIR"/*.sig
+    do
+        [[ -e $file ]] || continue
+        if [[ ! -e "$file%.sig" ]]
+        then
+            rm -f "$file"
+            plain "\'${file##/*/}\' doesn't have a corresponding data file: File removed"
+        fi
+    done
+}
+    
 # cleanup_temp --- clean up temp data
 # usage: cleanup_temp
 cleanup_temp () {
@@ -684,6 +726,7 @@ case $CMD in
                 ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
         fi
         [[ $SOURCE != "aur" ]] || cd -
+        cleanup_repo
         # upload adjusted local repo incl. package files
         upload_repo
         ;;
@@ -705,43 +748,7 @@ case $CMD in
             download_repo all
             set_signargs
 
-            # check if all package in the repo db have corresponding package
-            # files
-            read_db | cut -d " " -f 2 | while read -r pkg
-            do
-                if [[ -z $(find "$TEMPREPODIR" -maxdepth 1 \
-                    -name "${pkg}*.pkg.tar.xz") ]]
-                then
-                    repo-remove ${SIGNARGS_REPO[@]} \
-                        "${TEMPREPODIR}/${REPO}.db.tar.xz" "$pkg"
-                    plain "Package file for \'$pkg\' doesnt' exist: Package removed from repository"
-                fi
-            done
-
-            # check if all package file are represented in the repo db
-            mapfile -t pkgs < <( tar -tf "${TEMPREPODIR}/${REPO}.db.tar.xz")
-            for file in "$TEMPREPODIR"/*.pkg.tar.xz
-            do
-                # extract package name from $file
-                pkg=${file##/*/}
-                pkg=${pkg%-*.pkg.tar.xz}
-                # check if repo contains that package, if not: remove files
-                if [[ ! " ${pkgs[@]} " =~ " $pkg/" ]]
-                then
-                    rm -f "$file" "$file".sig
-                    plain "\'$pkg\' not contained in repository database: Package file(s) removed"
-                fi
-            done
-
-            # check if every sig file has a corresponding data file
-            for file in "$TEMPREPODIR"/*.sig
-            do
-                if [[ ! -e "$file%.sig" ]]
-                then
-                    rm -f "$file"
-                    plain "\'${file##/*/}\' doesn't have a corresponding data file: File removed"
-                fi
-            done
+            cleanup_repo
 
             # upload adjusted local repo incl. package files
             upload_repo
@@ -1008,6 +1015,7 @@ case $CMD in
                 aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
                     ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
                 cd -
+                cleanup_repo
                 # upload adjusted local repo incl. package files
                 upload_repo
             fi
@@ -1025,4 +1033,4 @@ case $CMD in
         ;;
 esac
 
-crema_exit 0
+crema_exit i
