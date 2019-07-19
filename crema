@@ -711,9 +711,9 @@ case $CMD in
                         # into a relative path if necessary)
                         if [[ "$dir" = /* ]]
                         then
-                            realpath --relative-to=. "$dir" > "$TEMPFILE"
+                            realpath --relative-to=. "$dir" >> "$TEMPFILE"
                         else
-                            echo "$dir" > "$TEMPFILE"
+                            echo "$dir" >> "$TEMPFILE"
                         fi
                     done
                 fi
@@ -918,8 +918,8 @@ case $CMD in
         fi    
         # remove packages from local repo db and remove package files
         cd "$TEMPREPODIR"
-        repo-remove ${SIGNARGS_REPO[@]} "${REPO}.db.tar.xz" "$REMARGS"
-        for pkg in "$REMARGS"
+        repo-remove ${SIGNARGS_REPO[@]} "${REPO}.db.tar.xz" "${REMARGS[@]}"
+        for pkg in "${REMARGS[@]}"
         do
             rm -f "$pkg"*pkg.tar.xz
             rm -f "$pkg"*pkg.tar.xz.sig
@@ -1033,4 +1033,4 @@ case $CMD in
         ;;
 esac
 
-crema_exit i
+crema_exit 0
