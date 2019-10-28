@@ -28,7 +28,7 @@ Another option is a manual installation. For this, clone this repository and cop
 
 cream has sub commands for the different tasks:
 
-* `crema build` builds and adds packages incl. corresponding package tarballs to a custom repository
+* `crema add` adds packages incl. corresponding package tarballs to a custom repository
 * `crema cleanup` cleans up one or all custom repositories (e.g. if the database and the package files are not consistent anymore)
 * `crema chroot-add-key` adds gpg key to the chroot environment
 * `crema chroot-rm` removes/resets the chroot environment

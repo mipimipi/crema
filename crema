@@ -31,16 +31,14 @@ declare -r PKGDIR=${XDG_DATA_HOME:-"$HOME"/.local}/crema/pkg
 declare -r TEMPFILE=${XDG_DATA_HOME:-"$HOME"/.local}/crema/temp.file
 declare -r CFGFILE=${XDG_CONFIG_HOME:-"$HOME"/.config}/crema.conf
 declare -r CHROOTDIR=/var/lib/aurbuild/$(uname -m)
-declare CMD=               # sub command
-declare SIGNARGS_AUR=      # sign arguments for aurutils
-declare SIGNARGS_REPO=     # sign arguments for repo-* tools
-declare MAKEARGS=("-c" "--" "--" "-c")
-                           # chroot arguments (chroot is the default)
-declare -a REMARGS=()      # remaining arguments
-declare REPO=              # repository
-declare REPODIR=           # remote repository directory
-declare SOURCE=            # source for add sub command. Can be either "aur"
-                           # or "local" 
+declare CMD=              # sub command
+declare SIGNARGS_AUR=     # sign arguments for aurutils
+declare SIGNARGS_REPO=    # sign arguments for repo-* tools
+declare CHROOTARGS=("-c") # building via chroot is default    
+declare -a REMARGS=()     # remaining arguments
+declare REPO=             # repository
+declare REPODIR=          # remote repository directory
+declare SOURCE=           # source for add sub command. Can be either "aur" or "local" 
 
 
 ################################################################################
@@ -484,7 +482,7 @@ parse_args () {
                 crema_exit 1
                 ;;
             --nochroot | -n)
-                MAKEARGS=("--" "-c")
+                CHROOTARGS=()
                 shift
                 ;;
             --path | -p)
@@ -722,13 +720,33 @@ case $CMD in
         # build and add packages to local repository
         if [[ -s "$TEMPFILE" ]]
         then
-            aur build -d "$REPO" -a "$TEMPFILE" --root="$TEMPREPODIR" -N \
-                ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
+            aur build -d "$REPO" -a "$TEMPFILE" --root="$TEMPREPODIR" -N ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} || true
         fi
         [[ $SOURCE != "aur" ]] || cd -
         cleanup_repo
         # upload adjusted local repo incl. package files
         upload_repo
+        ;;
+
+    chroot-add-key)
+        if [[ -z ${2+x} ]]
+        then
+            error "key is required"
+            crema_exit 1
+        fi
+        sudo arch-chroot "$CHROOTDIR"/root pacman-key -r $2
+        if [[ $? == 0 ]]
+        then
+            msg "key $2 added to chroot environment"
+        else
+            error "key $2 could not be added to chroot environment"
+            crema_exit 1
+        fi    
+        ;;
+
+    chroot-rm)
+        sudo rm -rfd "$CHROOTDIR"
+        msg "Chroot environment \'$CHROOTDIR\' removed"
         ;;
 
     cleanup)
@@ -753,26 +771,6 @@ case $CMD in
             # upload adjusted local repo incl. package files
             upload_repo
         done < "$CFGFILE"
-        ;;
-
-    chroot-add-key)
-        if [[ -z ${2+x} ]]
-        then
-            error "key is required"
-            crema_exit 1
-        fi    
-        sudo arch-chroot "$CHROOTDIR"/root pacman-key -r $2
-        if [[ $? == 0 ]]
-        then
-            msg "key $2 added to chroot environment"
-        else
-            error "key $2 could not be added to chroot environment"
-        fi    
-        ;;
-
-    chroot-rm)
-        sudo rm -rfd "$CHROOTDIR"
-        msg "Chroot environment \'$CHROOTDIR\' removed"
         ;;
 
     env)
@@ -1012,8 +1010,7 @@ case $CMD in
             then
                 # update outdated packages
                 cd "$TEMPREPODIR"
-                aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n \
-                    ${SIGNARGS_AUR[@]} ${MAKEARGS[@]} || true
+                aur sync -d "$REPO" --root="$TEMPREPODIR" -u -n ${SIGNARGS_AUR[@]} ${CHROOTARGS[@]} || true
                 cd -
                 cleanup_repo
                 # upload adjusted local repo incl. package files
